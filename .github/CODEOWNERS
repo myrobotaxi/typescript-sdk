@@ -1,0 +1,23 @@
+# Contract + SDK API surface — require @tnando review before merge.
+#
+# Mirrors the telemetry repo CODEOWNERS pattern (MYR-6). The TypeScript
+# SDK's public API IS part of the contract surface; changes here affect
+# the my-robo-taxi Next.js app and the myrobotaxi-test-bench dashboard.
+#
+# Contract docs themselves live in the telemetry repo at docs/contracts/
+# — schema-touching PRs here MUST be paired with a contract amendment
+# PR there. The sdk-architect agent enforces this at review time.
+
+# SDK public surface
+packages/sdk/src/**             @tnando
+packages/sdk/package.json       @tnando
+packages/sdk/tsup.config.ts     @tnando
+
+# Build + release infrastructure
+.github/workflows/**            @tnando
+.github/CODEOWNERS              @tnando
+.github/dependabot.yml          @tnando
+
+# Toolchain
+tsconfig.base.json              @tnando
+eslint.config.mjs               @tnando
