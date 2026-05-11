@@ -105,17 +105,50 @@ jobs:
         run: |
           PR_NUM="${{ github.event.pull_request.number }}"
 
-          # Find Claude's review comment and extract the verdict. The
-          # pr-reviewer agent file (.claude/agents/pr-reviewer.md) is
-          # responsible for enforcing the machine-readable tag format.
-          # Try HTML tag first, fall back to **Verdict: APPROVE** bold.
           LAST_COMMENT=$(gh api "repos/${{ github.repository }}/issues/${PR_NUM}/comments" \
             --jq 'last | .body')
-          VERDICT=$(echo "$LAST_COMMENT" | grep -oP '(?<=<!-- VERDICT: )\w+(?= -->)' || \
-                    echo "$LAST_COMMENT" | grep -oP '(?<=\*\*Verdict: )(APPROVE|REQUEST_CHANGES|COMMENT)' || echo "")
+
+          # ── Pass 1: strict machine-readable tag (the format the
+          # pr-reviewer agent file instructs Claude to use). ──
+          VERDICT=$(echo "$LAST_COMMENT" \
+            | grep -oP '<!--[[:space:]]*VERDICT:[[:space:]]*\K(APPROVE|REQUEST_CHANGES|COMMENT)' \
+            | tail -1 || true)
+
+          # ── Pass 2: **Verdict:** bold markdown (also common). ──
+          if [ -z "$VERDICT" ]; then
+            VERDICT=$(echo "$LAST_COMMENT" \
+              | grep -oP '\*\*Verdict:\*\*[[:space:]]*\K(APPROVE|REQUEST_CHANGES|COMMENT)' \
+              | tail -1 || true)
+          fi
+
+          # ── Pass 3: prose detection inside a "Verdict" section. ──
+          # Claude sometimes writes "### Verdict\n…approved…no blocking
+          # issues…" rather than the strict tag. Detect the sentiment
+          # from the prose so substantively-approving reviews aren't
+          # mis-classified as inconclusive COMMENT verdicts.
+          #
+          # Order matters: REQUEST_CHANGES wins on explicit "request
+          # changes" phrasing. APPROVE wins on "approved" / "no blocking
+          # issues" / "LGTM" / "ship it". Otherwise → COMMENT.
+          if [ -z "$VERDICT" ]; then
+            VERDICT_LINE=$(echo "$LAST_COMMENT" | grep -nE -i '^#{1,6}[[:space:]]+Verdict|^\*\*Verdict[:*]' | head -1 | cut -d: -f1 || true)
+            if [ -n "$VERDICT_LINE" ]; then
+              VERDICT_BODY=$(echo "$LAST_COMMENT" | tail -n +"$VERDICT_LINE")
+            else
+              VERDICT_BODY="$LAST_COMMENT"
+            fi
+
+            if echo "$VERDICT_BODY" | grep -qiE '\brequest[[:space:]_-]?changes\b|\brequesting[[:space:]]+changes\b|\bneeds?[[:space:]]+changes\b|\bblocker(s)?\b|\bblocking[[:space:]]+(issue|problem|item)s?[[:space:]]+(found|identified|present)\b'; then
+              VERDICT="REQUEST_CHANGES"
+              echo "::notice::Verdict extracted via prose fallback: REQUEST_CHANGES"
+            elif echo "$VERDICT_BODY" | grep -qiE '\bapproved?\b|\bno[[:space:]]+blocking[[:space:]]+issues?\b|\blgtm\b|\blooks[[:space:]]+good[[:space:]]+to[[:space:]]+(merge|ship|go)\b|\bship[[:space:]]+it\b|\bready[[:space:]]+to[[:space:]]+merge\b|\bcorrectly[[:space:]]+resolved\b'; then
+              VERDICT="APPROVE"
+              echo "::notice::Verdict extracted via prose fallback: APPROVE"
+            fi
+          fi
 
           if [ -z "$VERDICT" ]; then
-            echo "::warning::No verdict tag found in Claude's review comment, defaulting to COMMENT"
+            echo "::warning::No verdict found in Claude's review (no tag, no recognized prose). Defaulting to COMMENT."
             VERDICT="COMMENT"
           fi
 
