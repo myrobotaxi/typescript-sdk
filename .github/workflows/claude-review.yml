@@ -29,23 +29,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # Generate a short-lived (~1h) installation token from the
+      # `myrobotaxi-pr-review` GitHub App, owned by the org. App-issued
+      # tokens are accepted by branch protection's "required approving
+      # reviews" rule and the App identity does not consume a billable
+      # seat (replaces the previous tnando-gh-bot collaborator).
+      - name: Generate App installation token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.REVIEWER_APP_ID }}
+          private-key: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Collect PR context
         id: context
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           PR_NUM="${{ github.event.pull_request.number }}"
 
-          # Get agent labels for domain-aware review
           AGENT_LABELS=$(gh pr view "$PR_NUM" --json labels -q '[.labels[].name | select(startswith("agent:"))] | join(", ")')
           echo "agent_labels=${AGENT_LABELS}" >> "$GITHUB_OUTPUT"
 
-          # Get linked Linear ticket from PR body (MYR-NNN pattern)
           LINEAR_TICKET=$(gh pr view "$PR_NUM" --json body -q '.body' | grep -oP 'MYR-\d+' | head -1 || echo "")
           echo "linear_ticket=${LINEAR_TICKET}" >> "$GITHUB_OUTPUT"
 
@@ -59,7 +69,7 @@ jobs:
         uses: anthropics/claude-code-action@b4d67413279fc18c6e5de930ae307c4f108714eb # v1.0.104
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ secrets.GH_PAT }}
+          github_token: ${{ steps.app-token.outputs.token }}
           use_sticky_comment: true
           track_progress: true
           claude_args: >-
@@ -83,7 +93,7 @@ jobs:
                - Logic-only rule: no UI / map / theming / state-framework deps (NFR-3.32)
                - Browser + Node + React isomorphism (no Node-only or browser-only globals without a guard)
                - Test coverage for new public surface; table-driven vitest pattern
-            4. If `agent:sdk-architect` label is present, additionally verify the change matches the contract docs in https://github.com/tnando/my-robo-taxi-telemetry/tree/main/docs/contracts
+            4. If `agent:sdk-architect` label is present, additionally verify the change matches the contract docs in https://github.com/myrobotaxi/my-robo-taxi-telemetry/tree/main/docs/contracts
             5. End your review with a verdict tag: `<!-- VERDICT: APPROVE -->`, `<!-- VERDICT: REQUEST_CHANGES -->`, or `<!-- VERDICT: COMMENT -->`
 
             Focus on real issues, not style nits. If the code is clean and well-tested, approve it.
@@ -91,7 +101,7 @@ jobs:
       - name: Extract review verdict
         id: verdict
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           PR_NUM="${{ github.event.pull_request.number }}"
 
@@ -110,7 +120,7 @@ jobs:
 
       - name: Submit review verdict
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           PR_NUM="${{ github.event.pull_request.number }}"
           VERDICT="${{ steps.verdict.outputs.verdict }}"
@@ -136,14 +146,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Generate App installation token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.REVIEWER_APP_ID }}
+          private-key: ${{ secrets.REVIEWER_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: anthropics/claude-code-action@b4d67413279fc18c6e5de930ae307c4f108714eb # v1.0.104
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ secrets.GH_PAT }}
+          github_token: ${{ steps.app-token.outputs.token }}
           claude_args: >-
             --max-turns 10

@@ -15,9 +15,9 @@
 - [ ] `ux-audit` — consumer-API ergonomics
 
 ## Contract Impact
-<!-- Does this PR change any contract surface? If yes, link the paired contract amendment PR in tnando/my-robo-taxi-telemetry. -->
+<!-- Does this PR change any contract surface? If yes, link the paired contract amendment PR in myrobotaxi/my-robo-taxi-telemetry. -->
 - [ ] No contract impact
-- [ ] Paired with contract PR: <!-- e.g., tnando/my-robo-taxi-telemetry#NNN -->
+- [ ] Paired with contract PR: <!-- e.g., myrobotaxi/my-robo-taxi-telemetry#NNN -->
 
 ## Bundle Impact
 <!-- Did you add a dependency? Did the bundle size change? Run `npm run build` and check dist/*.js sizes. The < 75KB gzipped budget is hard. -->

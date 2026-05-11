@@ -5,11 +5,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tnando/myrobotaxi-sdk.git",
+    "url": "git+https://github.com/myrobotaxi/myrobotaxi-sdk.git",
     "directory": "packages/sdk"
   },
-  "homepage": "https://github.com/tnando/myrobotaxi-sdk#readme",
-  "bugs": "https://github.com/tnando/myrobotaxi-sdk/issues",
+  "homepage": "https://github.com/myrobotaxi/myrobotaxi-sdk#readme",
+  "bugs": "https://github.com/myrobotaxi/myrobotaxi-sdk/issues",
   "type": "module",
   "engines": {
     "node": ">=20"

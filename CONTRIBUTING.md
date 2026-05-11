@@ -19,7 +19,7 @@ myrobotaxi-sdk/
 ## First-time setup
 
 ```bash
-git clone git@github.com:tnando/myrobotaxi-sdk.git
+git clone git@github.com:myrobotaxi/myrobotaxi-sdk.git
 cd myrobotaxi-sdk
 npm install
 ```
@@ -63,4 +63,4 @@ Linear auto-links commits containing `MYR-NN`.
 
 ## Contract source-of-truth
 
-The contract docs live in [`tnando/my-robo-taxi-telemetry/docs/contracts/`](https://github.com/tnando/my-robo-taxi-telemetry/tree/main/docs/contracts). Any SDK change that touches a contract-defined wire shape, error code, or atomic group MUST be paired with a contract amendment PR there. Don't hand-write types that the codegen pipeline (MYR-49) should be generating.
+The contract docs live in [`myrobotaxi/my-robo-taxi-telemetry/docs/contracts/`](https://github.com/myrobotaxi/my-robo-taxi-telemetry/tree/main/docs/contracts). Any SDK change that touches a contract-defined wire shape, error code, or atomic group MUST be paired with a contract amendment PR there. Don't hand-write types that the codegen pipeline (MYR-49) should be generating.
