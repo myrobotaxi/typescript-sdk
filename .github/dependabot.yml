@@ -1,0 +1,32 @@
+version: 2
+
+updates:
+  # npm — monorepo root + workspace packages.
+  # Dependabot follows the package.json's workspaces glob.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "tnando"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "deps"
+
+  # GitHub Actions workflow pinned-version bumps.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "tnando"
+    labels:
+      - "dependencies"
+      - "agent:infra"
+    commit-message:
+      prefix: "ci"
