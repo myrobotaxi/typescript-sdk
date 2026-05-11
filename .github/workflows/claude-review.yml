@@ -94,9 +94,17 @@ jobs:
                - Browser + Node + React isomorphism (no Node-only or browser-only globals without a guard)
                - Test coverage for new public surface; table-driven vitest pattern
             4. If `agent:sdk-architect` label is present, additionally verify the change matches the contract docs in https://github.com/myrobotaxi/my-robo-taxi-telemetry/tree/main/docs/contracts
-            5. End your review with a verdict tag: `<!-- VERDICT: APPROVE -->`, `<!-- VERDICT: REQUEST_CHANGES -->`, or `<!-- VERDICT: COMMENT -->`
+            5. **CRITICAL — verdict format.** Your review MUST end with EXACTLY one of these three lines, alone on its own line, with no prose alternative and no markdown heading. This line is parsed by a regex — any other format (including `### Verdict` heading, `**Verdict: X**` bold, or natural prose like "approved" or "no blocking issues") may be misclassified. Place it as the absolute last line of your review body:
 
-            Focus on real issues, not style nits. If the code is clean and well-tested, approve it.
+               ```
+               <!-- VERDICT: APPROVE -->
+               <!-- VERDICT: REQUEST_CHANGES -->
+               <!-- VERDICT: COMMENT -->
+               ```
+
+               You may still write a "Verdict" section above this tag for human readers — but the machine-readable tag is what determines whether the App-bot submits APPROVED, REQUEST_CHANGES, or COMMENTED to GitHub.
+
+            Focus on real issues, not style nits. If the code is clean and well-tested, approve it (`<!-- VERDICT: APPROVE -->`).
 
       - name: Extract review verdict
         id: verdict
@@ -107,11 +115,45 @@ jobs:
 
           LAST_COMMENT=$(gh api "repos/${{ github.repository }}/issues/${PR_NUM}/comments" \
             --jq 'last | .body')
-          VERDICT=$(echo "$LAST_COMMENT" | grep -oP '(?<=<!-- VERDICT: )\w+(?= -->)' || \
-                    echo "$LAST_COMMENT" | grep -oP '(?<=\*\*Verdict: )(APPROVE|REQUEST_CHANGES|COMMENT)' || echo "")
+
+          # ── Pass 1: strict machine-readable tags (preferred — see prompt) ──
+          VERDICT=$(echo "$LAST_COMMENT" \
+            | grep -oP '<!--[[:space:]]*VERDICT:[[:space:]]*\K(APPROVE|REQUEST_CHANGES|COMMENT)' \
+            | tail -1 || true)
 
           if [ -z "$VERDICT" ]; then
-            echo "::warning::No verdict tag found in Claude's review comment, defaulting to COMMENT"
+            VERDICT=$(echo "$LAST_COMMENT" \
+              | grep -oP '\*\*Verdict:\*\*[[:space:]]*\K(APPROVE|REQUEST_CHANGES|COMMENT)' \
+              | tail -1 || true)
+          fi
+
+          # ── Pass 2: scan a "Verdict" section for natural-language signals ──
+          # When Claude writes "### Verdict\n...approved..." instead of the
+          # machine-readable tag, fall through to prose detection. Order
+          # matters: REQUEST_CHANGES wins on explicit "request changes"
+          # phrasing; APPROVE wins on "approved" / "no blocking issues" /
+          # "LGTM" / "ship it"; default = COMMENT.
+          if [ -z "$VERDICT" ]; then
+            # Extract everything from the "Verdict" heading onward (case-
+            # insensitive, accepts ## or ### or **Verdict:** lead-in).
+            VERDICT_LINE=$(echo "$LAST_COMMENT" | grep -nE -i '^#{1,6}[[:space:]]+Verdict|^\*\*Verdict[:*]' | head -1 | cut -d: -f1 || true)
+            if [ -n "$VERDICT_LINE" ]; then
+              VERDICT_BODY=$(echo "$LAST_COMMENT" | tail -n +"$VERDICT_LINE")
+            else
+              VERDICT_BODY="$LAST_COMMENT"
+            fi
+
+            if echo "$VERDICT_BODY" | grep -qiE '\brequest[[:space:]_-]?changes\b|\brequesting[[:space:]]+changes\b|\bneeds?[[:space:]]+changes\b|\bblocker(s)?\b|\bblocking[[:space:]]+(issue|problem|item)s?[[:space:]]+(found|identified|present)\b'; then
+              VERDICT="REQUEST_CHANGES"
+              echo "::notice::Detected REQUEST_CHANGES via prose fallback"
+            elif echo "$VERDICT_BODY" | grep -qiE '\bapproved?\b|\bno[[:space:]]+blocking[[:space:]]+issues?\b|\blgtm\b|\blooks[[:space:]]+good[[:space:]]+to[[:space:]]+(merge|ship|go)\b|\bship[[:space:]]+it\b|\bready[[:space:]]+to[[:space:]]+merge\b'; then
+              VERDICT="APPROVE"
+              echo "::notice::Detected APPROVE via prose fallback"
+            fi
+          fi
+
+          if [ -z "$VERDICT" ]; then
+            echo "::warning::No verdict tag or recognizable prose found, defaulting to COMMENT"
             VERDICT="COMMENT"
           fi
 
