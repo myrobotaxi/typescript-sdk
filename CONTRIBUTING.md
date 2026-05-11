@@ -1,9 +1,9 @@
-# Contributing to `myrobotaxi-sdk`
+# Contributing to `my-robo-taxi-ts-sdk`
 
 ## Repo layout
 
 ```
-myrobotaxi-sdk/
+my-robo-taxi-ts-sdk/
 ├── .github/
 │   ├── workflows/        CI + Claude Review
 │   ├── CODEOWNERS        @tnando on SDK surface + infra paths
@@ -19,8 +19,8 @@ myrobotaxi-sdk/
 ## First-time setup
 
 ```bash
-git clone git@github.com:myrobotaxi/myrobotaxi-sdk.git
-cd myrobotaxi-sdk
+git clone git@github.com:myrobotaxi/my-robo-taxi-ts-sdk.git
+cd my-robo-taxi-ts-sdk
 npm install
 ```
 
