@@ -12,12 +12,15 @@ TypeScript SDK for the MyRoboTaxi telemetry server. Logic-only — no UI, no map
 npm install @myrobotaxi/sdk
 ```
 
-The React adapter is exposed under the `/react` subpath:
+The React adapter is exposed under the `/react` subpath, and the wire-shape types under `/types`:
 
 ```ts
 import { /* SDK exports */ } from '@myrobotaxi/sdk';
 import { /* React hooks */ } from '@myrobotaxi/sdk/react';
+import type { VehicleState, WebSocketEnvelope } from '@myrobotaxi/sdk/types';
 ```
+
+The `/types` subpath re-exports the pre-generated types from [@myrobotaxi/contracts](https://github.com/myrobotaxi/contracts) — the canonical wire-protocol source of truth. It tree-shakes to zero bytes for consumers that only need types.
 
 ## Platform support
 

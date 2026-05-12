@@ -63,4 +63,6 @@ Linear auto-links commits containing `MYR-NN`.
 
 ## Contract source-of-truth
 
-The contract docs live in [`myrobotaxi/telemetry/docs/contracts/`](https://github.com/myrobotaxi/telemetry/tree/main/docs/contracts). Any SDK change that touches a contract-defined wire shape, error code, or atomic group MUST be paired with a contract amendment PR there. Don't hand-write types that the codegen pipeline (MYR-49) should be generating.
+Wire-shape types come from the standalone [`@myrobotaxi/contracts`](https://github.com/myrobotaxi/contracts) package — they are NOT hand-written in this repo. The SDK consumes them via `packages/sdk/src/types.ts`, which re-exports from `@myrobotaxi/contracts/types`.
+
+Schema authoring currently lives in [`myrobotaxi/telemetry/docs/contracts/schemas/`](https://github.com/myrobotaxi/telemetry/tree/main/docs/contracts/schemas) and is vendored into the contracts repo via paired PR (until the Phase 2 migration moves authoring into the contracts repo itself). A contract change is therefore a **three-PR cascade**: telemetry → contracts → SDK (this repo) bumps the dep.

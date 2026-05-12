@@ -28,9 +28,15 @@ The only runtime peer dependency is `react` (optional — used only by the `@myr
 
 ## Contract source-of-truth
 
-The SDK is contract-driven. Every wire shape, atomic group, error code, and state transition is defined in [`docs/contracts/`](https://github.com/myrobotaxi/telemetry/tree/main/docs/contracts) of the [telemetry](https://github.com/myrobotaxi/telemetry) repo. The TS types in this SDK are generated from those JSON Schema contracts via the codegen pipeline (MYR-49) — do NOT hand-edit them.
+The SDK is contract-driven. Every wire shape, atomic group, error code, and state transition is defined as JSON Schema in the standalone [`@myrobotaxi/contracts`](https://github.com/myrobotaxi/contracts) package. The TS types exposed under `@myrobotaxi/sdk/types` are **re-exported** from `@myrobotaxi/contracts/types` — they are NOT hand-written in this repo, and `packages/sdk/src/types.ts` is the only place that touches them.
 
-Schema-touching PRs in this repo MUST be paired with a contract amendment PR in the telemetry repo. The `sdk-architect` agent enforces this at review time.
+Schema authoring currently lives in [`myrobotaxi/telemetry/docs/contracts/schemas/`](https://github.com/myrobotaxi/telemetry/tree/main/docs/contracts/schemas) and is vendored into the contracts repo via paired PR (until the Phase 2 migration moves authoring into the contracts repo itself). A schema-touching change is therefore a **three-PR cascade**:
+
+1. Telemetry repo: edit the source `.schema.json`.
+2. Contracts repo: copy the updated schema, regenerate types, bump version.
+3. This SDK repo: bump the `@myrobotaxi/contracts` dependency.
+
+The `sdk-architect` agent enforces this at review time.
 
 ## Bundle budget (NFR-3.30)
 

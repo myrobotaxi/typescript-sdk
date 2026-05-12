@@ -26,7 +26,7 @@ See [`packages/sdk/CONTRIBUTING.md`](packages/sdk/CONTRIBUTING.md) for the packa
 
 ## Contract source-of-truth
 
-The SDK is contract-driven. Every wire shape, atomic group, error code, and state transition is defined in [`docs/contracts/`](https://github.com/myrobotaxi/telemetry/tree/main/docs/contracts) of the [telemetry](https://github.com/myrobotaxi/telemetry) repo. The TS types in this SDK are generated from those contract schemas (see MYR-49).
+Wire-shape types come from the standalone [`@myrobotaxi/contracts`](https://github.com/myrobotaxi/contracts) package — the canonical JSON Schema + pre-generated TypeScript source of truth, consumed by this SDK, the Go [telemetry](https://github.com/myrobotaxi/telemetry) server, and (eventually) a Swift SDK. Schema authoring currently lives in [`myrobotaxi/telemetry/docs/contracts/schemas/`](https://github.com/myrobotaxi/telemetry/tree/main/docs/contracts/schemas) and is vendored into the contracts repo via paired PR (Phase 2 will collapse this to a single home).
 
 ## License
 
