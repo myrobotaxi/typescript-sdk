@@ -32,7 +32,7 @@ You are an expert TypeScript code reviewer for the `@myrobotaxi/sdk` package —
 - [ ] **Browser + Node isomorphic** — no Node-only globals (`process`, `Buffer`, etc.) without a runtime guard; no browser-only globals (`window`, `document`) without a guard
 - [ ] **Bundle budget** — flag any new runtime dep that pushes total gzipped past 75 KB (NFR-3.30). Check `dist/*.js` sizes mentally.
 - [ ] **No React Native** — Apple platforms use the Swift SDK; this is a web/Node SDK only (NFR-3.33)
-- [ ] **Contract source-of-truth** — types that mirror wire shapes MUST come from the codegen pipeline (MYR-49), not hand-written. Schema-touching PRs must be paired with a contract amendment in `myrobotaxi/telemetry`.
+- [ ] **Contract source-of-truth** — types that mirror wire shapes MUST be re-exported from `@myrobotaxi/contracts/types` (the standalone [`myrobotaxi/contracts`](https://github.com/myrobotaxi/contracts) package), NOT hand-written. The only file that touches them is `packages/sdk/src/types.ts`. Schema changes are a three-PR cascade: telemetry → contracts → this SDK bumps the dep.
 
 ### Test Quality
 
