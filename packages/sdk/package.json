@@ -67,7 +67,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@myrobotaxi/contracts": "github:myrobotaxi/contracts#v0.1.0"
+    "@myrobotaxi/contracts": "^0.1.0"
   },
   "peerDependencies": {
     "react": ">=18"
