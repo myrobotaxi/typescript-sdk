@@ -17,4 +17,4 @@
 // version constant so consumers can verify they linked against the
 // SDK without needing any of the not-yet-implemented surface.
 
-export const SDK_VERSION = '0.0.0';
+export const SDK_VERSION = '0.0.1';

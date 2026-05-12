@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     react: 'src/react/index.ts',
+    types: 'src/types.ts',
   },
   format: ['esm', 'cjs'],
   outExtension: ({ format }) => ({
@@ -15,5 +16,5 @@ export default defineConfig({
   sourcemap: true,
   target: 'es2022',
   splitting: false,
-  external: ['react'],
+  external: ['react', '@myrobotaxi/contracts', '@myrobotaxi/contracts/types'],
 });
