@@ -93,7 +93,7 @@ jobs:
                - Logic-only rule: no UI / map / theming / state-framework deps (NFR-3.32)
                - Browser + Node + React isomorphism (no Node-only or browser-only globals without a guard)
                - Test coverage for new public surface; table-driven vitest pattern
-            4. If `agent:sdk-architect` label is present, additionally verify the change matches the contract docs in https://github.com/myrobotaxi/my-robo-taxi-telemetry/tree/main/docs/contracts
+            4. If `agent:sdk-architect` label is present, additionally verify the change matches the contract docs in https://github.com/myrobotaxi/telemetry/tree/main/docs/contracts
             5. End your review with a verdict tag (see pr-reviewer agent instructions in `.claude/agents/pr-reviewer.md`).
 
             Focus on real issues, not style nits. If the code is clean and well-tested, approve it.

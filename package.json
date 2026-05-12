@@ -1,5 +1,5 @@
 {
-  "name": "my-robo-taxi-ts-sdk-monorepo",
+  "name": "typescript-sdk-monorepo",
   "version": "0.0.0",
   "private": true,
   "description": "MyRoboTaxi TypeScript SDK monorepo root (npm workspaces).",
