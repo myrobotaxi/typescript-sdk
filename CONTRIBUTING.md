@@ -1,9 +1,9 @@
-# Contributing to `my-robo-taxi-ts-sdk`
+# Contributing to `typescript-sdk`
 
 ## Repo layout
 
 ```
-my-robo-taxi-ts-sdk/
+typescript-sdk/
 ├── .github/
 │   ├── workflows/        CI + Claude Review
 │   ├── CODEOWNERS        @tnando on SDK surface + infra paths
@@ -19,8 +19,8 @@ my-robo-taxi-ts-sdk/
 ## First-time setup
 
 ```bash
-git clone git@github.com:myrobotaxi/my-robo-taxi-ts-sdk.git
-cd my-robo-taxi-ts-sdk
+git clone git@github.com:myrobotaxi/typescript-sdk.git
+cd typescript-sdk
 npm install
 ```
 
@@ -63,4 +63,4 @@ Linear auto-links commits containing `MYR-NN`.
 
 ## Contract source-of-truth
 
-The contract docs live in [`myrobotaxi/my-robo-taxi-telemetry/docs/contracts/`](https://github.com/myrobotaxi/my-robo-taxi-telemetry/tree/main/docs/contracts). Any SDK change that touches a contract-defined wire shape, error code, or atomic group MUST be paired with a contract amendment PR there. Don't hand-write types that the codegen pipeline (MYR-49) should be generating.
+The contract docs live in [`myrobotaxi/telemetry/docs/contracts/`](https://github.com/myrobotaxi/telemetry/tree/main/docs/contracts). Any SDK change that touches a contract-defined wire shape, error code, or atomic group MUST be paired with a contract amendment PR there. Don't hand-write types that the codegen pipeline (MYR-49) should be generating.

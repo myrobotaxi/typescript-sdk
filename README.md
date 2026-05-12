@@ -17,7 +17,7 @@ Apple platforms (iOS, iPadOS, macOS, watchOS, visionOS) consume the Swift SDK di
 
 ## Consumers
 
-- **[my-robo-taxi](https://github.com/myrobotaxi/my-robo-taxi)** (Next.js production app) — depends on this SDK once published
+- **[react-frontend](https://github.com/myrobotaxi/react-frontend)** (Next.js production app) — depends on this SDK once published
 - **[myrobotaxi-test-bench](https://github.com/myrobotaxi/myrobotaxi-test-bench)** (validation dashboard) — depends on this SDK during P3 development via workspace link, then via npm once published
 
 ## Development
@@ -26,7 +26,7 @@ See [`packages/sdk/CONTRIBUTING.md`](packages/sdk/CONTRIBUTING.md) for the packa
 
 ## Contract source-of-truth
 
-The SDK is contract-driven. Every wire shape, atomic group, error code, and state transition is defined in [`docs/contracts/`](https://github.com/myrobotaxi/my-robo-taxi-telemetry/tree/main/docs/contracts) of the [my-robo-taxi-telemetry](https://github.com/myrobotaxi/my-robo-taxi-telemetry) repo. The TS types in this SDK are generated from those contract schemas (see MYR-49).
+The SDK is contract-driven. Every wire shape, atomic group, error code, and state transition is defined in [`docs/contracts/`](https://github.com/myrobotaxi/telemetry/tree/main/docs/contracts) of the [telemetry](https://github.com/myrobotaxi/telemetry) repo. The TS types in this SDK are generated from those contract schemas (see MYR-49).
 
 ## License
 
