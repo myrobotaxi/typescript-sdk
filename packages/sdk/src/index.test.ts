@@ -8,8 +8,8 @@ describe('@myrobotaxi/sdk scaffold', () => {
     expect(typeof SDK_VERSION).toBe('string');
   });
 
-  it('starts at v0.0.1 — MYR-49 consumes @myrobotaxi/contracts/types', () => {
-    expect(SDK_VERSION).toBe('0.0.1');
+  it('reflects MYR-81 observability surface bump', () => {
+    expect(SDK_VERSION).toBe('0.0.2');
   });
 });
 
