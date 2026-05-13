@@ -132,6 +132,31 @@ logger.info(`vehicle at ${latitude}, ${longitude}`, { vehicleId });
 logger.info('vehicle position update', { vehicleId, latitude, longitude });
 ```
 
+### What `redactP1` does NOT cover (pass plain data)
+
+The walker uses `Object.entries`, which means a few container types and
+edge cases are not introspected. To stay safe, **pass plain objects and
+arrays as `meta`** — not exotic value types:
+
+- **Map / Set values** become empty (`{}` / `[]`) after redaction; their
+  entries are not iterated and not redacted, but also not leaked. If you
+  need to log structured data, convert to a plain object first.
+- **Custom `toJSON()` methods** on values are not called by the walker —
+  but they may fire later when the consumer's Logger serializes the
+  output. A P0-keyed value whose `toJSON()` returns P1 data would leak.
+  Pass plain data; don't rely on `toJSON()` to scrub.
+- **Getter properties** are read during the walk; if a getter has side
+  effects, those fire. The SDK never calls `redactP1` on values it
+  doesn't control, so this only matters when consumers pass exotic
+  objects in their own log calls.
+- **Symbol keys** are skipped (`Object.entries` is string-keys only).
+  Don't hide P1 data on symbol keys expecting it to round-trip.
+- **Prototype-chain properties** are skipped. The output object contains
+  only own enumerable properties; inherited values are dropped (safe).
+- **Cycles** are detected via a `WeakSet` of visited objects. A back-edge
+  to an already-visited container is substituted with `[REDACTED]`. The
+  walker terminates — no stack overflow.
+
 ### What's redacted vs preserved
 
 | Always redacted to `[REDACTED]` | Reason |

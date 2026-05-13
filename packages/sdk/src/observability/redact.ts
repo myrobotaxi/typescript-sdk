@@ -29,6 +29,10 @@ const P1_KEYS: ReadonlySet<string> = new Set([
   'originlongitude',
 
   // Addresses and named locations (Vehicle §1.3, Drive §1.4, TripStop §1.7).
+  // The bare `address` key catches TripStop.address (§1.7) which has no
+  // prefix family — paired with the prefixed variants below it ensures any
+  // address-shaped value gets redacted regardless of the parent shape.
+  'address',
   'locationname',
   'locationaddress',
   'destinationname',
@@ -99,15 +103,22 @@ function redactVin(value: unknown): string {
  * Used to implement the §1.5 containment rule: a container with a P1
  * descendant is itself P1, so we redact the entire container rather
  * than leak the P1 child by way of its sibling P0 fields.
+ *
+ * `seen` tracks already-visited objects so cyclic inputs do not cause a
+ * stack overflow — the second visit to the same object short-circuits
+ * to false (safe default; if the cycle contained a P1 key, the first
+ * visit's own-property scan would already have detected it).
  */
-function containsP1(value: unknown): boolean {
+function containsP1(value: unknown, seen = new WeakSet<object>()): boolean {
   if (value === null || typeof value !== 'object') return false;
+  if (seen.has(value)) return false;
+  seen.add(value);
   if (Array.isArray(value)) {
-    return value.some(containsP1);
+    return value.some((item) => containsP1(item, seen));
   }
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
     if (isP1Key(k) || isVinKey(k)) return true;
-    if (containsP1(v)) return true;
+    if (containsP1(v, seen)) return true;
   }
   return false;
 }
@@ -123,16 +134,22 @@ function containsP1(value: unknown): boolean {
  * Never mutates the input.
  */
 export function redactP1<T>(input: T): T {
-  return redactValue(input) as T;
+  return redactValue(input, new WeakSet()) as T;
 }
 
-function redactValue(value: unknown): unknown {
+function redactValue(value: unknown, seen: WeakSet<object>): unknown {
   if (value === null || value === undefined) return value;
   if (typeof value !== 'object') return value;
+  // Cycle guard: if we've already redacted this exact object on the current
+  // walk, substitute `[REDACTED]` for the back-edge. Conservative: a cycle
+  // that re-enters a known-clean container also becomes `[REDACTED]`, but
+  // that's the right tradeoff vs the stack-overflow alternative.
+  if (seen.has(value)) return REDACTED;
+  seen.add(value);
   if (Array.isArray(value)) {
     // Containment rule: an array with any P1 descendant is itself P1.
     if (containsP1(value)) return REDACTED;
-    return value.map(redactValue);
+    return value.map((item) => redactValue(item, seen));
   }
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
@@ -150,7 +167,7 @@ function redactValue(value: unknown): unknown {
       result[k] = REDACTED;
       continue;
     }
-    result[k] = redactValue(v);
+    result[k] = redactValue(v, seen);
   }
   return result;
 }

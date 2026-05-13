@@ -20,6 +20,7 @@ describe('redactP1 — flat-object P1 keys', () => {
     ['startAddress', '1 Market St'],
     ['endLocation', 'Office'],
     ['endAddress', '500 Howard St'],
+    ['address', '500 Howard St'],
     ['licensePlate', 'ABC1234'],
     ['email', 'user@example.com'],
     ['userEmail', 'user@example.com'],
@@ -182,5 +183,27 @@ describe('redactP1 — edge cases', () => {
     const inputCopy = { ...input };
     redactP1(input);
     expect(input).toEqual(inputCopy);
+  });
+
+  it('handles cyclic inputs without stack overflow', () => {
+    interface Cyclic { vehicleId: string; self?: Cyclic }
+    const a: Cyclic = { vehicleId: 'clxyz' };
+    a.self = a; // cycle
+    const out = redactP1(a);
+    expect(out.vehicleId).toBe('clxyz');
+    // Back-edge becomes REDACTED rather than infinite recursion.
+    expect(out.self).toBe(REDACTED);
+  });
+
+  it('handles cyclic inputs with a P1 child by containment', () => {
+    interface CyclicP1 { latitude: number; self?: CyclicP1 }
+    const a: CyclicP1 = { latitude: 37.7749 };
+    a.self = a;
+    const out = redactP1(a);
+    expect(out.latitude).toBe(REDACTED);
+    // The container `self` points back to a node holding P1, so containment
+    // rule redacts it too. Either via key-level (latitude) or back-edge
+    // (cycle guard) — both produce the same outcome: P1 doesn't escape.
+    expect(out.self).toBe(REDACTED);
   });
 });
