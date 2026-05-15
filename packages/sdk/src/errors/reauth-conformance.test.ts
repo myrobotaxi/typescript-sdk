@@ -155,7 +155,7 @@ describe('reauth_required conformance — WS carrier (MYR-82)', () => {
       metrics: rec,
     };
     const client = new MyRoboTaxiClient(opts);
-    client.subscribe((e) => events.push(e));
+    client.onEvent((e) => events.push(e));
 
     client.connect();
     await flush(); // getToken resolves, socket created
@@ -191,7 +191,7 @@ describe('reauth_required conformance — WS carrier (MYR-82)', () => {
       heartbeatIntervalMs: 1000,
       metrics: rec,
     });
-    client.subscribe((e) => events.push(e));
+    client.onEvent((e) => events.push(e));
 
     client.connect();
     await flush();

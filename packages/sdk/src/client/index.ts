@@ -7,6 +7,7 @@ export type {
   ClientListener,
   ConnectionState,
   MyRoboTaxiClientOptions,
+  Subscription,
   WebSocketFactory,
   WebSocketLike,
 } from './types.js';

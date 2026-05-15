@@ -49,7 +49,7 @@ function makeClient(overrides: Partial<MyRoboTaxiClientOptions> = {}) {
     heartbeatIntervalMs: 1000, // watchdog = 2000
     ...overrides,
   });
-  client.subscribe((e) => events.push(e));
+  client.onEvent((e) => events.push(e));
   return { client, events };
 }
 
@@ -226,10 +226,10 @@ describe('MyRoboTaxiClient — terminal errors', () => {
   it('a throwing listener does not break other listeners', async () => {
     const { client } = makeClient();
     const seen: ClientEvent[] = [];
-    client.subscribe(() => {
+    client.onEvent(() => {
       throw new Error('listener boom');
     });
-    client.subscribe((e) => seen.push(e));
+    client.onEvent((e) => seen.push(e));
     client.connect();
     await flush();
     MockWS.instances[0]!.fireOpen();
