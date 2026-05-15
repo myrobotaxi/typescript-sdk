@@ -14,6 +14,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verdict-extraction:
+    name: Verdict-extraction regression (MYR-100)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Regression-test the claude-review verdict extractor
+        run: bash scripts/verdict-extraction-test.sh
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

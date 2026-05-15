@@ -114,11 +114,19 @@ jobs:
             | grep -oP '<!--[[:space:]]*VERDICT:[[:space:]]*\K(APPROVE|REQUEST_CHANGES|COMMENT)' \
             | tail -1 || true)
 
-          # ── Pass 2: **Verdict:** bold markdown (also common). ──
+          # ── Pass 2: bold-markdown Verdict (MYR-100). Tolerates every
+          # bolding/colon arrangement the agent emits:
+          #   **Verdict:** APPROVE   **Verdict: APPROVE**
+          #   **Verdict** APPROVE    Verdict: approve
+          # Case-insensitive; `[*: ]+` consumes any run of asterisks /
+          # colons / spaces between the label and the value, then the
+          # value is upper-cased. The old `\*\*Verdict:\*\*` form missed
+          # the colon-inside-bold variant and dropped through to the
+          # lossy prose pass. ──
           if [ -z "$VERDICT" ]; then
             VERDICT=$(echo "$LAST_COMMENT" \
-              | grep -oP '\*\*Verdict:\*\*[[:space:]]*\K(APPROVE|REQUEST_CHANGES|COMMENT)' \
-              | tail -1 || true)
+              | grep -oiP 'verdict[*: ]+\K(approve|request_changes|comment)' \
+              | tail -1 | tr '[:lower:]' '[:upper:]' || true)
           fi
 
           # ── Pass 3: prose detection inside a "Verdict" section. ──
@@ -138,7 +146,13 @@ jobs:
               VERDICT_BODY="$LAST_COMMENT"
             fi
 
-            if echo "$VERDICT_BODY" | grep -qiE '\brequest[[:space:]_-]?changes\b|\brequesting[[:space:]]+changes\b|\bneeds?[[:space:]]+changes\b|\bblocker(s)?\b|\bblocking[[:space:]]+(issue|problem|item)s?[[:space:]]+(found|identified|present)\b'; then
+            # NOTE (MYR-100): the bare `\bblocker(s)?\b` alternative was
+            # removed — it false-matched passing prose like "None of
+            # these are blockers", flipping a clean APPROVE to
+            # REQUEST_CHANGES on PR #17. Only explicit change-request
+            # phrasing or a "blocking <thing> found/identified/present"
+            # construction counts now.
+            if echo "$VERDICT_BODY" | grep -qiE '\brequest[[:space:]_-]?changes\b|\brequesting[[:space:]]+changes\b|\bneeds?[[:space:]]+changes\b|\bblocking[[:space:]]+(issue|problem|item)s?[[:space:]]+(found|identified|present)\b'; then
               VERDICT="REQUEST_CHANGES"
               echo "::notice::Verdict extracted via prose fallback: REQUEST_CHANGES"
             elif echo "$VERDICT_BODY" | grep -qiE '\bapproved?\b|\bno[[:space:]]+blocking[[:space:]]+issues?\b|\blgtm\b|\blooks[[:space:]]+good[[:space:]]+to[[:space:]]+(merge|ship|go)\b|\bship[[:space:]]+it\b|\bready[[:space:]]+to[[:space:]]+merge\b|\bcorrectly[[:space:]]+resolved\b'; then
