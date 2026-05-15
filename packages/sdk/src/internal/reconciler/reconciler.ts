@@ -11,7 +11,7 @@ import type { VehicleState } from '@myrobotaxi/contracts/types';
 import type { Logger } from '../../observability/logger.js';
 import type { MetricsRecorder } from '../../observability/metrics.js';
 import { Metric } from '../../observability/metrics.js';
-import { checkGroup, GROUP_FIELDS, GROUP_NAMES, groupsTouched } from './atomic-groups.js';
+import { checkGroup, GROUP_FIELDS, GROUP_NAMES, groupOf, groupsTouched } from './atomic-groups.js';
 import type {
   ChangeEvent,
   DataState,
@@ -72,6 +72,11 @@ export class Reconciler {
   private queued: Partial<VehicleState>[] = [];
 
   private readonly listeners = new Set<Listener>();
+  // Events are buffered and flushed only AFTER `this.vehicle` is written,
+  // so a listener that calls getView() inside a handler never observes a
+  // new `dataState` against a stale `vehicle` (review fix — the WS client
+  // and non-React consumers would otherwise hit this transient).
+  private pending: ChangeEvent[] = [];
   private readonly logger: Logger;
   private readonly metrics: MetricsRecorder;
 
@@ -104,6 +109,10 @@ export class Reconciler {
    *  Drains any queued live frames afterward (state-machine §5.2 rule 4). */
   applySnapshot(snapshot: Readonly<Partial<VehicleState>>): void {
     const next: Partial<VehicleState> = { ...(this.vehicle ?? {}), ...snapshot };
+    // Write the merged baseline FIRST so any getView() inside a buffered
+    // listener (flushed below) observes the new vehicle alongside the new
+    // dataState.
+    this.vehicle = next;
     for (const group of GROUP_NAMES) {
       const check = checkGroup(group, next, true);
       if (!check.ok) {
@@ -112,8 +121,8 @@ export class Reconciler {
       }
       this.transitionGroup(group, check.clear ? 'cleared' : 'ready'); // D-1
     }
-    this.vehicle = next;
     this.emitState();
+    this.flush();
 
     // Replay queued live frames in arrival order, now that the baseline
     // is consistent (CG-SM-4: never apply a live frame before the snapshot).
@@ -129,6 +138,7 @@ export class Reconciler {
     for (const g of groups) this.transitionGroup(g, 'error', reason);
     this.awaitingSnapshot = false;
     this.queued = [];
+    this.flush();
   }
 
   // ---- live deltas -------------------------------------------------------
@@ -146,11 +156,12 @@ export class Reconciler {
 
     const touched = groupsTouched(fields as Record<string, unknown>);
     const accepted: Partial<VehicleState> = {};
+    const acceptedGroups = new Set<GroupName>();
 
     // Ungrouped fields (state-machine §4.3) update individually, no
     // dataState dimension. Freshness is implied by connectionState.
     for (const [k, v] of Object.entries(fields)) {
-      if (!groupsTouchedHas(touched, k)) {
+      if (groupOf(k) === undefined) {
         (accepted as Record<string, unknown>)[k] = v;
       }
     }
@@ -177,6 +188,7 @@ export class Reconciler {
         for (const f of GROUP_FIELDS[group]) {
           (accepted as Record<string, unknown>)[f] = null;
         }
+        acceptedGroups.add(group);
         this.transitionGroup(group, 'cleared');
         continue;
       }
@@ -184,18 +196,25 @@ export class Reconciler {
       for (const f of GROUP_FIELDS[group]) {
         if (f in fields) (accepted as Record<string, unknown>)[f] = (fields as Record<string, unknown>)[f];
       }
+      acceptedGroups.add(group);
       this.transitionGroup(group, 'ready');
     }
 
-    this.vehicle = { ...(this.vehicle ?? {}), ...accepted };
-    this.emitState();
-
-    // While driving, a vehicle_update carrying a GPS route point is a
-    // logical `drive_updated` (state-machine §3.3 DR-2; the wire carries
-    // vehicle_update, not a distinct message).
-    if (this.drive === 'driving' && touched.has('gps')) {
-      this.emit({ kind: 'drive', from: 'driving', to: 'driving' });
+    // Write the merged state BEFORE flushing buffered events so listeners
+    // never see a new dataState against a stale vehicle.
+    if (Object.keys(accepted).length > 0) {
+      this.vehicle = { ...(this.vehicle ?? {}), ...accepted };
+      this.emitState();
     }
+
+    // While driving, a vehicle_update carrying an ACCEPTED GPS route point
+    // is a logical `drive_updated` (state-machine §3.3 DR-2; the wire
+    // carries vehicle_update). Gated on acceptance so a rejected GPS frame
+    // does not emit a misleading no-progress heartbeat.
+    if (this.drive === 'driving' && acceptedGroups.has('gps')) {
+      this.enqueue({ kind: 'drive', from: 'driving', to: 'driving' });
+    }
+    this.flush();
   }
 
   // ---- drive lifecycle ---------------------------------------------------
@@ -206,7 +225,8 @@ export class Reconciler {
     this.drive = 'driving';
     this.activeDriveId = payload.driveId;
     this.driveSummary = null;
-    this.emit({ kind: 'drive', from, to: 'driving' });
+    this.enqueue({ kind: 'drive', from, to: 'driving' });
+    this.flush();
   }
 
   applyDriveEnded(summary: DriveSummary): void {
@@ -214,7 +234,8 @@ export class Reconciler {
     this.drive = 'ended';
     this.activeDriveId = summary.driveId;
     this.driveSummary = summary;
-    this.emit({ kind: 'drive', from: 'driving', to: 'ended', summary });
+    this.enqueue({ kind: 'drive', from: 'driving', to: 'ended', summary });
+    this.flush();
   }
 
   /** Consumer processed the drive summary (DR-5 ended→idle). */
@@ -223,7 +244,8 @@ export class Reconciler {
     this.drive = 'idle';
     this.activeDriveId = null;
     this.driveSummary = null;
-    this.emit({ kind: 'drive', from: 'ended', to: 'idle' });
+    this.enqueue({ kind: 'drive', from: 'ended', to: 'idle' });
+    this.flush();
   }
 
   // ---- connection lifecycle ---------------------------------------------
@@ -242,8 +264,9 @@ export class Reconciler {
     if (this.drive === 'driving') {
       this.drive = 'idle';
       this.activeDriveId = null;
-      this.emit({ kind: 'drive', from: 'driving', to: 'idle' });
+      this.enqueue({ kind: 'drive', from: 'driving', to: 'idle' });
     }
+    this.flush();
   }
 
   /** Reconnect started — re-fetch snapshot. ALL non-error groups → loading
@@ -255,6 +278,7 @@ export class Reconciler {
     for (const group of GROUP_NAMES) {
       this.transitionGroup(group, 'loading');
     }
+    this.flush();
   }
 
   // ---- internals ---------------------------------------------------------
@@ -263,29 +287,34 @@ export class Reconciler {
     const from = this.dataState[group];
     if (from === to && to !== 'ready') return; // ready→ready still emits (D-3)
     this.dataState[group] = to;
-    this.emit({ kind: 'dataState', group, from, to, reason });
+    this.enqueue({ kind: 'dataState', group, from, to, reason });
   }
 
   private emitState(): void {
-    if (this.vehicle) this.emit({ kind: 'state', vehicle: { ...this.vehicle } });
+    if (this.vehicle) this.enqueue({ kind: 'state', vehicle: { ...this.vehicle } });
   }
 
-  private emit(event: ChangeEvent): void {
-    for (const l of this.listeners) {
-      try {
-        l(event);
-      } catch (err) {
-        this.logger.error('reconciler: listener threw', {
-          err: err instanceof Error ? err.message : String(err),
-        });
+  /** Buffer an event. Delivered only by flush(), after the vehicle write. */
+  private enqueue(event: ChangeEvent): void {
+    this.pending.push(event);
+  }
+
+  /** Deliver buffered events in order. State is already written, so a
+   *  getView() inside any handler is consistent. */
+  private flush(): void {
+    if (this.pending.length === 0) return;
+    const batch = this.pending;
+    this.pending = [];
+    for (const event of batch) {
+      for (const l of this.listeners) {
+        try {
+          l(event);
+        } catch (err) {
+          this.logger.error('reconciler: listener threw', {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
   }
-}
-
-function groupsTouchedHas(groups: Set<GroupName>, field: string): boolean {
-  for (const g of groups) {
-    if ((GROUP_FIELDS[g] as readonly string[]).includes(field)) return true;
-  }
-  return false;
 }
