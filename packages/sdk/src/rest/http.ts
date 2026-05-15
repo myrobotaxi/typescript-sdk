@@ -59,19 +59,27 @@ export class HttpCore {
     opts: RequestOpts & { query?: Record<string, string | number | undefined>; body?: unknown } = {},
   ): Promise<RestResult<T>> {
     const url = this.buildUrl(path, opts.query);
-    let attempt = 0;
-    let didAuthRetry = false;
+    // `backoffAttempts` counts ONLY backoff-eligible retries (network /
+    // 429 / 5xx). It is incremented at the retry decision point, never
+    // per-iteration — so the one forced-refresh 401 retry does not
+    // consume a backoff slot without an `attempt -= 1` hack (review S6).
+    let backoffAttempts = 0;
+    let authRetried = false;
+    const aborted = (): RestResult<T> => ({
+      ok: false,
+      error: restErrorToCoreError('internal_error', 0, { message: 'aborted' }),
+    });
 
     for (;;) {
-      attempt += 1;
-      const started = Date.now();
+      const startedAt = Date.now();
       let token: string;
       try {
-        token = await this.getToken({ forceRefresh: didAuthRetry });
+        token = await this.getToken({ forceRefresh: authRetried });
       } catch (err) {
         this.logger.error('rest: getToken rejected', {
           err: err instanceof Error ? err.message : String(err),
         });
+        this.recordDuration(path, 'error', startedAt);
         return {
           ok: false,
           error: restErrorToCoreError('auth_failed', 401, { message: 'getToken failed' }),
@@ -93,14 +101,16 @@ export class HttpCore {
         });
       } catch (err) {
         if (isAbortError(err)) {
-          return {
-            ok: false,
-            error: restErrorToCoreError('internal_error', 0, { message: 'aborted' }),
-          };
+          this.recordDuration(path, 'aborted', startedAt);
+          return aborted();
         }
-        // Network failure — treated like a transient internal_error.
-        if (attempt < this.maxAttempts) {
-          await this.delay(computeBackoffMs(attempt), opts.signal);
+        // Network failure — transient. Retry with backoff up to the cap.
+        this.recordDuration(path, 'network_error', startedAt);
+        if (backoffAttempts + 1 < this.maxAttempts) {
+          backoffAttempts += 1;
+          if (!(await this.backoff(computeBackoffMs(backoffAttempts), opts.signal))) {
+            return aborted(); // signal fired mid-backoff — never throw (FR-7.1)
+          }
           continue;
         }
         return {
@@ -109,14 +119,12 @@ export class HttpCore {
             message: err instanceof Error ? err.message : 'network error',
           }),
         };
-      } finally {
-        this.metrics.histogram(Metric.REST_REQUEST_DURATION_MS, Date.now() - started, {
-          endpoint: path,
-          status: 'pending',
-        });
       }
 
+      const status = String(res.status);
+
       if (res.ok) {
+        this.recordDuration(path, status, startedAt);
         const data = (await safeJson(res)) as T;
         return { ok: true, data };
       }
@@ -130,30 +138,32 @@ export class HttpCore {
         subCode,
         retryAfterSec,
       });
+      this.recordDuration(path, status, startedAt);
 
       // 401 auth_failed: one forced-refresh retry — UNLESS reauth_required
       // (rest-api.md §4.1.1: a silent getToken() can't satisfy auth_time;
       // surface to the consumer's auth layer instead — MYR-79/82 carve-out).
+      // This retry is NOT backoff-eligible and does not touch the counter.
       if (
         res.status === 401 &&
         core.code === 'auth_failed' &&
         subCode !== 'reauth_required' &&
-        !didAuthRetry
+        !authRetried
       ) {
-        didAuthRetry = true;
-        attempt -= 1; // the forced-refresh retry doesn't consume a backoff slot
+        authRetried = true;
         continue;
       }
 
-      // 429 / 500: bounded exponential backoff (§4.1.2 — cap 3).
-      if ((res.status === 429 || res.status >= 500) && attempt < this.maxAttempts) {
+      // 429 / 5xx: bounded exponential backoff (§4.1.2 — cap maxAttempts).
+      if ((res.status === 429 || res.status >= 500) && backoffAttempts + 1 < this.maxAttempts) {
+        backoffAttempts += 1;
         const waitMs =
-          retryAfterSec !== undefined ? retryAfterSec * 1000 : computeBackoffMs(attempt);
-        this.metrics.counter(Metric.REST_REQUEST_DURATION_MS, {
-          endpoint: path,
-          status: String(res.status),
-        });
-        await this.delay(waitMs, opts.signal);
+          retryAfterSec !== undefined
+            ? retryAfterSec * 1000
+            : computeBackoffMs(backoffAttempts);
+        if (!(await this.backoff(waitMs, opts.signal))) {
+          return aborted(); // signal fired mid-backoff — never throw (FR-7.1)
+        }
         continue;
       }
 
@@ -161,8 +171,23 @@ export class HttpCore {
     }
   }
 
+  /** One duration sample per terminal/retry outcome with the REAL status
+   *  (replaces the always-'pending' finally-block sample + the bogus
+   *  counter()-on-a-histogram-metric call — review W2). */
+  private recordDuration(endpoint: string, status: string, startedAt: number): void {
+    this.metrics.histogram(Metric.REST_REQUEST_DURATION_MS, Date.now() - startedAt, {
+      endpoint,
+      status,
+    });
+  }
+
   private buildUrl(path: string, query?: Record<string, string | number | undefined>): string {
-    const u = new URL(this.baseUrl + path);
+    // Resolve `path` against `baseUrl` as a proper base so a configured
+    // sub-path (e.g. baseUrl 'https://h/v2') is preserved rather than
+    // replaced by an absolute leading-slash path (review S4). The
+    // trailing slash on the base + stripped leading slash on the path
+    // make `new URL` treat the base path as a directory.
+    const u = new URL(path.replace(/^\/+/, ''), `${this.baseUrl}/`);
     if (query) {
       for (const [k, v] of Object.entries(query)) {
         if (v !== undefined) u.searchParams.set(k, String(v));
@@ -171,14 +196,18 @@ export class HttpCore {
     return u.toString();
   }
 
-  private delay(ms: number, signal?: AbortSignal): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const t = setTimeout(resolve, ms);
+  /** Wait `ms`, or resolve early if `signal` aborts. Resolves `true` if
+   *  the full wait elapsed, `false` if aborted — NEVER rejects, so an
+   *  abort during backoff can't throw out of request() (FR-7.1, W1). */
+  private backoff(ms: number, signal?: AbortSignal): Promise<boolean> {
+    if (signal?.aborted) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      const t = setTimeout(() => resolve(true), ms);
       signal?.addEventListener(
         'abort',
         () => {
           clearTimeout(t);
-          reject(new DOMException('Aborted', 'AbortError'));
+          resolve(false);
         },
         { once: true },
       );

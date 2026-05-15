@@ -163,4 +163,59 @@ describe('HttpCore — AbortSignal', () => {
     const r = await http.request('GET', '/api/x', { signal: AbortSignal.abort() });
     expect(r.ok).toBe(false);
   });
+
+  it('abort DURING backoff returns a CoreError, never throws (W1/FR-7.1)', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(429, { error: { code: 'rate_limited', message: 'slow' } }),
+    );
+    const ctrl = new AbortController();
+    const http = new HttpCore({
+      baseUrl: 'https://t.example',
+      getToken: async () => 't',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    const p = http.request('GET', '/api/x', { signal: ctrl.signal });
+    await vi.advanceTimersByTimeAsync(10); // first 429 received, now in backoff
+    ctrl.abort(); // fire mid-backoff
+    const r = await p; // MUST resolve, not reject
+    expect(r.ok).toBe(false);
+    vi.useRealTimers();
+  });
+});
+
+describe('HttpCore — getToken + network failure paths', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('getToken() rejection → terminal auth_failed CoreError (no throw)', async () => {
+    const http = new HttpCore({
+      baseUrl: 'https://t.example',
+      getToken: async () => {
+        throw new Error('idp down');
+      },
+      fetchImpl: (async () => jsonResponse(200, {})) as unknown as typeof fetch,
+    });
+    const r = await http.request('GET', '/api/x');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe('auth_failed');
+  });
+
+  it('network error retries with backoff, caps at maxAttempts', async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError('fetch failed');
+    });
+    const http = new HttpCore({
+      baseUrl: 'https://t.example',
+      getToken: async () => 't',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      maxAttempts: 3,
+    });
+    const p = http.request('GET', '/api/x');
+    await vi.runAllTimersAsync();
+    const r = await p;
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe('internal_error');
+    expect(fetchImpl).toHaveBeenCalledTimes(3); // 1 + 2 backoff retries
+  });
 });

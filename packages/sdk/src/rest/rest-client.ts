@@ -61,7 +61,9 @@ export class RestClient {
     /** GET /api/drives/{driveId} (FR-3.4). */
     get: (driveId: string, o: RequestOpts = {}): Promise<RestResult<DriveSummary>> =>
       this.http.request('GET', `/api/drives/${encodeURIComponent(driveId)}`, o),
-    /** GET /api/drives/{driveId}/route (FR-3.3). */
+    /** GET /api/drives/{driveId}/route (FR-3.3).
+     *  TODO(MYR-55): replace `unknown` with the generated route-shape
+     *  type from @myrobotaxi/contracts once the contract doc settles. */
     route: (driveId: string, o: RequestOpts = {}): Promise<RestResult<unknown>> =>
       this.http.request('GET', `/api/drives/${encodeURIComponent(driveId)}/route`, o),
   };
@@ -82,7 +84,9 @@ export class RestClient {
     /** DELETE /api/users/me (FR-10.1). */
     delete: (o: RequestOpts = {}): Promise<RestResult<void>> =>
       this.http.request('DELETE', '/api/users/me', o),
-    /** GET /api/users/me/export (GDPR Art. 15/20, rest-api §7.7). */
+    /** GET /api/users/me/export (GDPR Art. 15/20, rest-api §7.7).
+     *  TODO(MYR-55): type the export archive shape from the contract
+     *  once it settles; `unknown` is intentional until then. */
     export: (o: RequestOpts = {}): Promise<RestResult<unknown>> =>
       this.http.request('GET', '/api/users/me/export', o),
   };

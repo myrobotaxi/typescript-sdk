@@ -75,4 +75,25 @@ describe('RestClient — endpoint URLs + methods (rest-api §7)', () => {
     const r = await client.vehicles.list();
     expect(r.ok).toBe(true);
   });
+
+  it('propagates the {ok:false,error} branch through a namespace (S5)', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: { code: 'not_found', message: 'gone' } }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    );
+    const client = new RestClient({
+      baseUrl: 'https://t.example',
+      getToken: async () => 'tok',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    const r = await client.drives.get('missing');
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error.code).toBe('not_found');
+      expect(r.error.terminal).toBe(true);
+    }
+  });
 });
