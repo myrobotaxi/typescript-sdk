@@ -1,0 +1,187 @@
+name: Release
+
+# Three lanes (NFR-3.41-44), all publishing @myrobotaxi/sdk via npm
+# OIDC trusted publishing — NO npm token anywhere (same hardened
+# pattern as myrobotaxi/contracts: no NODE_AUTH_TOKEN, no setup-node
+# registry-url, pinned npm >= 11.5.1, environment npm-publish).
+#
+#   canary  — every push to main → vX.Y.Z-canary.<sha> @ dist-tag `canary`
+#   stable  — weekly (Mon 09:00 UTC) or manual → consume changesets,
+#             bump semver, CHANGELOG, git tag, publish @ `latest`
+#   hotfix  — manual dispatch → expedited stable, bypasses the weekly
+#             cadence (NFR-3.42)
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 9 * * 1' # Mondays 09:00 UTC — weekly stable (NFR-3.41)
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: 'stable | hotfix'
+        required: true
+        default: stable
+        type: choice
+        options: [stable, hotfix]
+
+# Load-bearing: serialises canary + stable + hotfix on the same ref so a
+# Monday-cron stable can't race a same-minute canary push (both publish
+# @myrobotaxi/sdk). cancel-in-progress:false — never abort an
+# in-flight publish; queue behind it.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: Canary (push → main)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+          # No registry-url — it injects a sentinel NODE_AUTH_TOKEN that
+          # breaks OIDC (the MYR-49/contracts-repo lesson, encoded here).
+
+      - name: Upgrade npm for OIDC trusted publishing
+        run: |
+          npm install -g npm@11.5.1
+          node --version && npm --version
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Version as canary snapshot
+        run: npx changeset version --snapshot canary
+
+      - name: Publish canary
+        # No env: NODE_AUTH_TOKEN — OIDC handles auth.
+        run: npx changeset publish --tag canary --no-git-tag
+
+  stable:
+    name: Stable (weekly / manual)
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.lane == 'stable')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-publish
+    permissions:
+      contents: write # commit the version bump + CHANGELOG + tags to main
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@11.5.1
+
+      - run: npm ci
+
+      - name: Any pending changesets?
+        id: pending
+        run: |
+          # Real changesets are *.md other than README.md. An empty
+          # (frontmatter-only) changeset still counts as "pending": it
+          # is a real file, so `changeset version` consumes+deletes it
+          # (a diff to commit — no `git commit` failure) and
+          # `changeset publish` is a clean no-op because nothing bumped.
+          if ls .changeset/*.md 2>/dev/null | grep -qv 'README\.md'; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=false" >> "$GITHUB_OUTPUT"
+            echo "No changesets since last stable — skipping (NFR-3.41)."
+          fi
+
+      - name: Version, changelog, tag
+        if: steps.pending.outputs.has == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name  'myrobotaxi-release[bot]'
+          git config user.email 'release@users.noreply.github.com'
+          npx changeset version          # bumps semver + writes CHANGELOG
+          npm install --package-lock-only
+          git add -A
+          git commit -m "chore(release): version packages [skip ci]"
+          git push origin HEAD:main
+
+      - run: npm run build
+        if: steps.pending.outputs.has == 'true'
+
+      - name: Publish stable
+        if: steps.pending.outputs.has == 'true'
+        run: npx changeset publish # creates git tags, publishes @ latest
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  hotfix:
+    name: Hotfix (manual, bypasses weekly cadence)
+    if: github.event_name == 'workflow_dispatch' && inputs.lane == 'hotfix'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-publish
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@11.5.1
+
+      - run: npm ci
+
+      # Fail fast with an actionable message instead of a confusing
+      # `git commit` "nothing to commit" exit when an on-call engineer
+      # triggers a hotfix with no staged changeset (review W1; mirrors
+      # the stable lane's pending-changesets guard).
+      - name: Require a pending changeset
+        run: |
+          if ! ls .changeset/*.md 2>/dev/null | grep -qv 'README\.md'; then
+            echo "::error::Hotfix lane requires a staged changeset on main. See packages/sdk/RELEASING.md → 'Authoring a changeset'."
+            exit 1
+          fi
+
+      - name: Version, changelog, tag (hotfix)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name  'myrobotaxi-release[bot]'
+          git config user.email 'release@users.noreply.github.com'
+          npx changeset version
+          npm install --package-lock-only
+          git add -A
+          git commit -m "chore(release): hotfix [skip ci]"
+          git push origin HEAD:main
+
+      - run: npm run build
+      - name: Publish hotfix
+        run: npx changeset publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
