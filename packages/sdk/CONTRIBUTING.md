@@ -40,7 +40,31 @@ The `sdk-architect` agent enforces this at review time.
 
 ## Bundle budget (NFR-3.30)
 
-Total gzipped bundle budget: **< 75 KB** (core `<` 55 KB + react `<` 20 KB). MYR-54 lands the CI gate that enforces this. Until then, run `npm run build` locally and inspect `dist/*.js` sizes when adding dependencies.
+Total gzipped bundle budget: **< 75 KB** — core (`@myrobotaxi/sdk`) `<` 55 KB + react (`@myrobotaxi/sdk/react`) `<` 20 KB.
+
+Enforced in CI by the **Bundle size** job (MYR-54): `size-limit` checks each entry point against its **per-entry cap** (core < 55 KB, react < 20 KB, plus a 1 KB tripwire on the `./types` subpath which must stay type-only). A separate step asserts the **sum < 75 KB** so the NFR-3.30 total can't drift even if a per-entry cap is ever loosened. On breach the job upserts a single PR comment (updated in place, not re-appended) with the size table and fails the build.
+
+### Inspect locally before pushing
+
+```bash
+npm run build      # from the monorepo root — produces packages/sdk/dist/
+npm run size       # human-readable table: each entry, gzipped size vs limit
+npm run size:json  # machine-readable (the format CI uploads as the trend artifact)
+```
+
+`npm run size` exits non-zero on a breach, mirroring CI.
+
+### What's allowed to be added
+
+- **Zero new runtime dependencies in core** without an explicit budget review in the PR description. Every dep counts against the 55 KB core budget after tree-shaking.
+- `devDependencies` don't count (not shipped).
+- The `react` peer dep is external — it does not count against the react-entry budget.
+- `@myrobotaxi/contracts` types are erased at build (type-only `./types` re-export) and do not ship runtime bytes.
+- If a change legitimately needs more headroom, bump the limit in `.size-limit.json` **in the same PR** with a one-line justification in the PR body. Reviewers gate this.
+
+### Trend tracking
+
+Every CI run uploads `size-report.json` as the `bundle-size-report` artifact (90-day retention). The last-30-commits trend on `main` is reconstructable from these artifacts; a standalone dashboard is intentionally out of scope for v1.
 
 ## Test convention
 
