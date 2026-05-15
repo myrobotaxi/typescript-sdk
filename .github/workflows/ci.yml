@@ -102,3 +102,67 @@ jobs:
           path: packages/sdk/dist/
           if-no-files-found: error
           retention-days: 7
+
+  bundle-size:
+    name: Bundle size
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build]
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Measure gzipped bundle size (NFR-3.30)
+        id: size
+        run: |
+          set +e
+          npm run size | tee size-output.txt
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          # Capture machine-readable form for the trend artifact even on breach.
+          npm run size:json > size-report.json 2>/dev/null || true
+          set -e
+
+      - name: Upload size report (trend artifact)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bundle-size-report
+          path: |
+            size-report.json
+            size-output.txt
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Comment on PR if over budget
+        if: steps.size.outputs.exit_code != '0' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "## Bundle size over budget (NFR-3.30)"
+            echo ""
+            echo "The gzipped bundle exceeds its budget. Budget: core < 55 KB, react < 20 KB, total < 75 KB."
+            echo ""
+            echo '```'
+            cat size-output.txt
+            echo '```'
+            echo ""
+            echo "See \`packages/sdk/CONTRIBUTING.md\` → **Bundle budget** for how to inspect locally and what is allowed to be added."
+          } > comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file comment.md
+
+      - name: Fail the build if over budget
+        if: steps.size.outputs.exit_code != '0'
+        run: |
+          echo "::error::Bundle size exceeds the NFR-3.30 budget — see the PR comment and the bundle-size-report artifact."
+          exit 1
