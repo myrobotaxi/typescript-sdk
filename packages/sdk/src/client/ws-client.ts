@@ -320,11 +320,17 @@ export class MyRoboTaxiClient {
       );
 
       this.emitError(core);
-      this.metrics.counter(Metric.AUTH_FAILED, {
-        subCode: core.code === 'auth_failed' && 'subCode' in core && core.subCode
-          ? core.subCode
-          : 'null',
-      });
+      // auth_failed_total{subCode} — SCOPED to auth_failed only (MYR-103),
+      // mirroring the REST client (MYR-82, rest/http.ts): an error frame
+      // can be rate_limited / internal_error / not_found / etc., and
+      // folding those into auth_failed_total would mislead operators. The
+      // {subCode} tag shape stays identical so one dashboard sums both
+      // carriers ('reauth_required' | 'null').
+      if (core.code === 'auth_failed') {
+        this.metrics.counter(Metric.AUTH_FAILED, {
+          subCode: 'subCode' in core && core.subCode ? core.subCode : 'null',
+        });
+      }
       if (core.terminal) {
         // C-8: auth rejected (or other terminal) → error, close.
         this.clearTimers();

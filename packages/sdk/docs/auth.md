@@ -87,11 +87,13 @@ track how often the recent-auth gate trips:
 - `subCode: 'null'` — a plain `auth_failed` was surfaced (after the one
   silent refresh retry was already spent)
 
-The WS client emits this on every error frame (MYR-50); the REST client
-scopes it to surfaced `auth_failed` outcomes only, because REST also
-returns many unrelated 4xx/5xx and folding those into `auth_failed_total`
-would mislead operators. The `{subCode}` tag dimension is identical
-across both, which is the point — you alert on the tag, not the carrier.
+Both carriers scope this to surfaced `auth_failed` outcomes only — an
+error (WS frame or REST response) can be `rate_limited` /
+`internal_error` / `not_found` / etc., and folding those into
+`auth_failed_total` would mislead operators. The `{subCode}` tag
+dimension is identical across both, which is the point — you alert on
+the tag, not the carrier. (REST scoping landed in MYR-82; WS scoping in
+MYR-103, which removed the earlier emit-on-every-error-frame behaviour.)
 
 ## Why not a separate error `kind`?
 

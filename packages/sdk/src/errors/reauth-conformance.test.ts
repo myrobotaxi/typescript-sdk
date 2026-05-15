@@ -209,4 +209,27 @@ describe('reauth_required conformance — WS carrier (MYR-82)', () => {
       expect(errEvt.error.code).toBe('auth_failed');
     }
   });
+
+  it('MYR-103: WS auth_failed_total is NOT emitted for a non-auth error frame', async () => {
+    const { rec, counters } = spyMetrics();
+    const client = new MyRoboTaxiClient({
+      url: 'wss://t.example/api/ws',
+      getToken: async () => 'tok',
+      webSocketFactory: (u) => new MockWS(u),
+      heartbeatIntervalMs: 1000,
+      metrics: rec,
+    });
+    client.onEvent(() => {
+      /* no-op */
+    });
+    client.connect();
+    await flush();
+    const ws = MockWS.instances[0]!;
+    ws.fireOpen();
+    // rate_limited is an error frame but NOT an auth failure — must not
+    // pollute auth_failed_total (parity with REST scoping, MYR-82/103).
+    ws.fireMessage({ type: 'error', payload: { code: 'rate_limited', message: 'slow down' } });
+
+    expect(counters.filter((c) => c.name === Metric.AUTH_FAILED)).toEqual([]);
+  });
 });
