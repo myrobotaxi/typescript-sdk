@@ -1,0 +1,13 @@
+{
+  "name": "internal_error",
+  "kind": "ws_error",
+  "input": {
+    "code": "internal_error",
+    "message": "boom"
+  },
+  "expect": {
+    "code": "internal_error",
+    "retryable": true,
+    "terminal": false
+  }
+}

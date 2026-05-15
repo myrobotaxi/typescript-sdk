@@ -1,0 +1,52 @@
+{
+  "name": "nav_activated",
+  "kind": "reconciler",
+  "input": {
+    "snapshot": {
+      "vehicleId": "clxyz",
+      "status": "parked",
+      "gearPosition": "P",
+      "chargeLevel": 75,
+      "estimatedRange": 240,
+      "latitude": 37.7749,
+      "longitude": -122.4194,
+      "heading": 90,
+      "destinationName": null,
+      "destinationAddress": null,
+      "destinationLatitude": null,
+      "destinationLongitude": null,
+      "originLatitude": null,
+      "originLongitude": null,
+      "etaMinutes": null,
+      "tripDistanceRemaining": null,
+      "navRouteCoordinates": null
+    },
+    "updates": [
+      {
+        "destinationName": "Work",
+        "destinationAddress": "1 Main",
+        "destinationLatitude": 37.8,
+        "destinationLongitude": -122.3,
+        "originLatitude": 37.7,
+        "originLongitude": -122.4,
+        "etaMinutes": 12,
+        "tripDistanceRemaining": 5.2,
+        "navRouteCoordinates": [
+          [
+            37.7,
+            -122.4
+          ],
+          [
+            37.8,
+            -122.3
+          ]
+        ]
+      }
+    ]
+  },
+  "expect": {
+    "dataState": {
+      "navigation": "ready"
+    }
+  }
+}

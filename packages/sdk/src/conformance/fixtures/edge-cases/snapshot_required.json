@@ -1,0 +1,13 @@
+{
+  "name": "snapshot_required",
+  "kind": "ws_error",
+  "input": {
+    "code": "snapshot_required",
+    "message": "resync"
+  },
+  "expect": {
+    "code": "snapshot_required",
+    "retryable": true,
+    "terminal": false
+  }
+}

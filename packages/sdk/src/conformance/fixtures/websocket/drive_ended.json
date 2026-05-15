@@ -1,0 +1,16 @@
+{
+  "name": "drive_ended",
+  "kind": "frame_parse",
+  "input": {
+    "type": "drive_ended",
+    "payload": {
+      "vehicleId": "clxyz",
+      "driveId": "d_1",
+      "distanceMeters": 1234,
+      "durationSeconds": 600
+    }
+  },
+  "expect": {
+    "type": "drive_ended"
+  }
+}

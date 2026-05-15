@@ -1,0 +1,13 @@
+{
+  "name": "vehicle_not_owned",
+  "kind": "ws_error",
+  "input": {
+    "code": "vehicle_not_owned",
+    "message": "nope"
+  },
+  "expect": {
+    "code": "vehicle_not_owned",
+    "retryable": false,
+    "terminal": true
+  }
+}

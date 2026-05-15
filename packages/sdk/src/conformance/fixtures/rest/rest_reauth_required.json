@@ -1,0 +1,15 @@
+{
+  "name": "rest_reauth_required",
+  "kind": "rest_error",
+  "input": {
+    "code": "auth_failed",
+    "httpStatus": 401,
+    "subCode": "reauth_required"
+  },
+  "expect": {
+    "code": "auth_failed",
+    "subCode": "reauth_required",
+    "retryable": false,
+    "terminal": true
+  }
+}

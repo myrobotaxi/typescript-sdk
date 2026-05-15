@@ -1,0 +1,39 @@
+{
+  "name": "charge_update_ready",
+  "kind": "reconciler",
+  "input": {
+    "snapshot": {
+      "vehicleId": "clxyz",
+      "status": "parked",
+      "gearPosition": "P",
+      "chargeLevel": 75,
+      "estimatedRange": 240,
+      "latitude": 37.7749,
+      "longitude": -122.4194,
+      "heading": 90,
+      "destinationName": null,
+      "destinationAddress": null,
+      "destinationLatitude": null,
+      "destinationLongitude": null,
+      "originLatitude": null,
+      "originLongitude": null,
+      "etaMinutes": null,
+      "tripDistanceRemaining": null,
+      "navRouteCoordinates": null
+    },
+    "updates": [
+      {
+        "chargeLevel": 60,
+        "estimatedRange": 200
+      }
+    ]
+  },
+  "expect": {
+    "dataState": {
+      "charge": "ready"
+    },
+    "vehicle": {
+      "chargeLevel": 60
+    }
+  }
+}

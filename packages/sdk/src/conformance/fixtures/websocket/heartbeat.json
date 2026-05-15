@@ -1,0 +1,11 @@
+{
+  "name": "heartbeat",
+  "kind": "frame_parse",
+  "input": {
+    "type": "heartbeat",
+    "payload": {}
+  },
+  "expect": {
+    "type": "heartbeat"
+  }
+}

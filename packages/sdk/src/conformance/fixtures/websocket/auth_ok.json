@@ -1,0 +1,14 @@
+{
+  "name": "auth_ok",
+  "kind": "frame_parse",
+  "input": {
+    "type": "auth_ok",
+    "payload": {
+      "userId": "u_1",
+      "vehicleCount": 2
+    }
+  },
+  "expect": {
+    "type": "auth_ok"
+  }
+}

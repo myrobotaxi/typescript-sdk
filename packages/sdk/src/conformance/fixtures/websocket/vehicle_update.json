@@ -1,0 +1,15 @@
+{
+  "name": "vehicle_update",
+  "kind": "frame_parse",
+  "input": {
+    "type": "vehicle_update",
+    "payload": {
+      "vehicleId": "clxyz",
+      "chargeLevel": 70,
+      "timestamp": "2026-05-15T00:00:00Z"
+    }
+  },
+  "expect": {
+    "type": "vehicle_update"
+  }
+}

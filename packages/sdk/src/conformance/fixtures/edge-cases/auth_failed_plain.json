@@ -1,0 +1,13 @@
+{
+  "name": "auth_failed_plain",
+  "kind": "ws_error",
+  "input": {
+    "code": "auth_failed",
+    "message": "expired"
+  },
+  "expect": {
+    "code": "auth_failed",
+    "retryable": false,
+    "terminal": true
+  }
+}

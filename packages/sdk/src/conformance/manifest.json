@@ -1,0 +1,456 @@
+{
+  "schema": 1,
+  "count": 23,
+  "fixtures": [
+    {
+      "name": "charge_update_ready",
+      "kind": "reconciler",
+      "input": {
+        "snapshot": {
+          "vehicleId": "clxyz",
+          "status": "parked",
+          "gearPosition": "P",
+          "chargeLevel": 75,
+          "estimatedRange": 240,
+          "latitude": 37.7749,
+          "longitude": -122.4194,
+          "heading": 90,
+          "destinationName": null,
+          "destinationAddress": null,
+          "destinationLatitude": null,
+          "destinationLongitude": null,
+          "originLatitude": null,
+          "originLongitude": null,
+          "etaMinutes": null,
+          "tripDistanceRemaining": null,
+          "navRouteCoordinates": null
+        },
+        "updates": [
+          {
+            "chargeLevel": 60,
+            "estimatedRange": 200
+          }
+        ]
+      },
+      "expect": {
+        "dataState": {
+          "charge": "ready"
+        },
+        "vehicle": {
+          "chargeLevel": 60
+        }
+      },
+      "relPath": "atomic-groups/charge_update_ready"
+    },
+    {
+      "name": "gps_update_ready",
+      "kind": "reconciler",
+      "input": {
+        "snapshot": {
+          "vehicleId": "clxyz",
+          "status": "parked",
+          "gearPosition": "P",
+          "chargeLevel": 75,
+          "estimatedRange": 240,
+          "latitude": 37.7749,
+          "longitude": -122.4194,
+          "heading": 90,
+          "destinationName": null,
+          "destinationAddress": null,
+          "destinationLatitude": null,
+          "destinationLongitude": null,
+          "originLatitude": null,
+          "originLongitude": null,
+          "etaMinutes": null,
+          "tripDistanceRemaining": null,
+          "navRouteCoordinates": null
+        },
+        "updates": [
+          {
+            "latitude": 38,
+            "longitude": -122,
+            "heading": 180
+          }
+        ]
+      },
+      "expect": {
+        "dataState": {
+          "gps": "ready"
+        },
+        "vehicle": {
+          "latitude": 38
+        }
+      },
+      "relPath": "atomic-groups/gps_update_ready"
+    },
+    {
+      "name": "nav_activated",
+      "kind": "reconciler",
+      "input": {
+        "snapshot": {
+          "vehicleId": "clxyz",
+          "status": "parked",
+          "gearPosition": "P",
+          "chargeLevel": 75,
+          "estimatedRange": 240,
+          "latitude": 37.7749,
+          "longitude": -122.4194,
+          "heading": 90,
+          "destinationName": null,
+          "destinationAddress": null,
+          "destinationLatitude": null,
+          "destinationLongitude": null,
+          "originLatitude": null,
+          "originLongitude": null,
+          "etaMinutes": null,
+          "tripDistanceRemaining": null,
+          "navRouteCoordinates": null
+        },
+        "updates": [
+          {
+            "destinationName": "Work",
+            "destinationAddress": "1 Main",
+            "destinationLatitude": 37.8,
+            "destinationLongitude": -122.3,
+            "originLatitude": 37.7,
+            "originLongitude": -122.4,
+            "etaMinutes": 12,
+            "tripDistanceRemaining": 5.2,
+            "navRouteCoordinates": [
+              [
+                37.7,
+                -122.4
+              ],
+              [
+                37.8,
+                -122.3
+              ]
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "dataState": {
+          "navigation": "ready"
+        }
+      },
+      "relPath": "atomic-groups/nav_activated"
+    },
+    {
+      "name": "snapshot_valid_nav_cleared",
+      "kind": "reconciler",
+      "input": {
+        "snapshot": {
+          "vehicleId": "clxyz",
+          "status": "parked",
+          "gearPosition": "P",
+          "chargeLevel": 75,
+          "estimatedRange": 240,
+          "latitude": 37.7749,
+          "longitude": -122.4194,
+          "heading": 90,
+          "destinationName": null,
+          "destinationAddress": null,
+          "destinationLatitude": null,
+          "destinationLongitude": null,
+          "originLatitude": null,
+          "originLongitude": null,
+          "etaMinutes": null,
+          "tripDistanceRemaining": null,
+          "navRouteCoordinates": null
+        },
+        "updates": []
+      },
+      "expect": {
+        "dataState": {
+          "gps": "ready",
+          "charge": "ready",
+          "gear": "ready",
+          "navigation": "cleared"
+        }
+      },
+      "relPath": "atomic-groups/snapshot_valid_nav_cleared"
+    },
+    {
+      "name": "auth_failed_plain",
+      "kind": "ws_error",
+      "input": {
+        "code": "auth_failed",
+        "message": "expired"
+      },
+      "expect": {
+        "code": "auth_failed",
+        "retryable": false,
+        "terminal": true
+      },
+      "relPath": "edge-cases/auth_failed_plain"
+    },
+    {
+      "name": "auth_failed_reauth",
+      "kind": "ws_error",
+      "input": {
+        "code": "auth_failed",
+        "message": "stale auth_time",
+        "subCode": "reauth_required"
+      },
+      "expect": {
+        "code": "auth_failed",
+        "subCode": "reauth_required",
+        "retryable": false,
+        "terminal": true
+      },
+      "relPath": "edge-cases/auth_failed_reauth"
+    },
+    {
+      "name": "auth_timeout",
+      "kind": "ws_error",
+      "input": {
+        "code": "auth_timeout",
+        "message": "slow"
+      },
+      "expect": {
+        "code": "auth_timeout",
+        "retryable": true,
+        "terminal": false
+      },
+      "relPath": "edge-cases/auth_timeout"
+    },
+    {
+      "name": "internal_error",
+      "kind": "ws_error",
+      "input": {
+        "code": "internal_error",
+        "message": "boom"
+      },
+      "expect": {
+        "code": "internal_error",
+        "retryable": true,
+        "terminal": false
+      },
+      "relPath": "edge-cases/internal_error"
+    },
+    {
+      "name": "permission_denied",
+      "kind": "ws_error",
+      "input": {
+        "code": "permission_denied",
+        "message": "no"
+      },
+      "expect": {
+        "code": "permission_denied",
+        "retryable": false,
+        "terminal": true
+      },
+      "relPath": "edge-cases/permission_denied"
+    },
+    {
+      "name": "rate_limited_device_cap",
+      "kind": "ws_error",
+      "input": {
+        "code": "rate_limited",
+        "message": "too many devices",
+        "subCode": "device_cap"
+      },
+      "expect": {
+        "code": "rate_limited",
+        "subCode": "device_cap",
+        "retryable": false,
+        "terminal": true
+      },
+      "relPath": "edge-cases/rate_limited_device_cap"
+    },
+    {
+      "name": "rate_limited_plain",
+      "kind": "ws_error",
+      "input": {
+        "code": "rate_limited",
+        "message": "slow down"
+      },
+      "expect": {
+        "code": "rate_limited",
+        "retryable": true,
+        "terminal": false
+      },
+      "relPath": "edge-cases/rate_limited_plain"
+    },
+    {
+      "name": "snapshot_required",
+      "kind": "ws_error",
+      "input": {
+        "code": "snapshot_required",
+        "message": "resync"
+      },
+      "expect": {
+        "code": "snapshot_required",
+        "retryable": true,
+        "terminal": false
+      },
+      "relPath": "edge-cases/snapshot_required"
+    },
+    {
+      "name": "vehicle_not_owned",
+      "kind": "ws_error",
+      "input": {
+        "code": "vehicle_not_owned",
+        "message": "nope"
+      },
+      "expect": {
+        "code": "vehicle_not_owned",
+        "retryable": false,
+        "terminal": true
+      },
+      "relPath": "edge-cases/vehicle_not_owned"
+    },
+    {
+      "name": "rest_invalid_request",
+      "kind": "rest_error",
+      "input": {
+        "code": "invalid_request",
+        "httpStatus": 400
+      },
+      "expect": {
+        "code": "invalid_request",
+        "retryable": false,
+        "terminal": true
+      },
+      "relPath": "rest/rest_invalid_request"
+    },
+    {
+      "name": "rest_not_found",
+      "kind": "rest_error",
+      "input": {
+        "code": "not_found",
+        "httpStatus": 404
+      },
+      "expect": {
+        "code": "not_found",
+        "retryable": false,
+        "terminal": true
+      },
+      "relPath": "rest/rest_not_found"
+    },
+    {
+      "name": "rest_rate_limited",
+      "kind": "rest_error",
+      "input": {
+        "code": "rate_limited",
+        "httpStatus": 429,
+        "retryAfterSec": 12
+      },
+      "expect": {
+        "code": "rate_limited",
+        "retryable": true,
+        "terminal": false,
+        "retryAfterSec": 12
+      },
+      "relPath": "rest/rest_rate_limited"
+    },
+    {
+      "name": "rest_reauth_required",
+      "kind": "rest_error",
+      "input": {
+        "code": "auth_failed",
+        "httpStatus": 401,
+        "subCode": "reauth_required"
+      },
+      "expect": {
+        "code": "auth_failed",
+        "subCode": "reauth_required",
+        "retryable": false,
+        "terminal": true
+      },
+      "relPath": "rest/rest_reauth_required"
+    },
+    {
+      "name": "rest_service_unavailable",
+      "kind": "rest_error",
+      "input": {
+        "code": "service_unavailable",
+        "httpStatus": 503,
+        "retryAfterSec": 30
+      },
+      "expect": {
+        "code": "service_unavailable",
+        "retryable": true,
+        "terminal": false,
+        "retryAfterSec": 30
+      },
+      "relPath": "rest/rest_service_unavailable"
+    },
+    {
+      "name": "auth_ok",
+      "kind": "frame_parse",
+      "input": {
+        "type": "auth_ok",
+        "payload": {
+          "userId": "u_1",
+          "vehicleCount": 2
+        }
+      },
+      "expect": {
+        "type": "auth_ok"
+      },
+      "relPath": "websocket/auth_ok"
+    },
+    {
+      "name": "drive_ended",
+      "kind": "frame_parse",
+      "input": {
+        "type": "drive_ended",
+        "payload": {
+          "vehicleId": "clxyz",
+          "driveId": "d_1",
+          "distanceMeters": 1234,
+          "durationSeconds": 600
+        }
+      },
+      "expect": {
+        "type": "drive_ended"
+      },
+      "relPath": "websocket/drive_ended"
+    },
+    {
+      "name": "drive_started",
+      "kind": "frame_parse",
+      "input": {
+        "type": "drive_started",
+        "payload": {
+          "vehicleId": "clxyz",
+          "driveId": "d_1"
+        }
+      },
+      "expect": {
+        "type": "drive_started"
+      },
+      "relPath": "websocket/drive_started"
+    },
+    {
+      "name": "heartbeat",
+      "kind": "frame_parse",
+      "input": {
+        "type": "heartbeat",
+        "payload": {}
+      },
+      "expect": {
+        "type": "heartbeat"
+      },
+      "relPath": "websocket/heartbeat"
+    },
+    {
+      "name": "vehicle_update",
+      "kind": "frame_parse",
+      "input": {
+        "type": "vehicle_update",
+        "payload": {
+          "vehicleId": "clxyz",
+          "chargeLevel": 70,
+          "timestamp": "2026-05-15T00:00:00Z"
+        }
+      },
+      "expect": {
+        "type": "vehicle_update"
+      },
+      "relPath": "websocket/vehicle_update"
+    }
+  ]
+}
