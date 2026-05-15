@@ -9,7 +9,7 @@ describe('@myrobotaxi/sdk scaffold', () => {
   });
 
   it('reflects MYR-81 observability surface bump', () => {
-    expect(SDK_VERSION).toBe('0.0.2');
+    expect(SDK_VERSION).toBe('0.0.3');
   });
 });
 
