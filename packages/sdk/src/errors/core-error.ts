@@ -111,6 +111,46 @@ export function isRetryable(error: CoreError): boolean {
   return error.retryable;
 }
 
+/**
+ * The reauth-required carve-out as a narrowed type (MYR-82). This is the
+ * `auth_failed` + `subCode: 'reauth_required'` case from rest-api.md
+ * §4.1.1 / §7.6-§7.7: the bearer token itself is structurally valid but
+ * the user's last interactive OAuth sign-in is older than the recent-auth
+ * window the server enforces for sensitive operations. It is ALWAYS
+ * terminal and NEVER eligible for the transport's silent getToken()
+ * retry — a token refresh cannot advance the `auth_time` claim, so an
+ * auto-retrying SDK would spin forever against an unsatisfiable gate.
+ *
+ * Design note (MYR-82): the ticket sketched a separate
+ * `{ kind: 'reauth_required' }` union arm, but `CoreError` is a single
+ * `code`-keyed discriminated union with a compile-time exhaustiveness
+ * guard (MYR-52, endorsed in review). A second discriminator style would
+ * fork the consumer-branching model. Instead this is a narrowing type +
+ * guard over the existing union; `error.transport` ('ws' | 'rest') IS the
+ * AC's "carrier" discriminator (kept diagnostic-only per the Transport
+ * doc — consumers branch on the guard, not on transport).
+ */
+export type ReauthRequiredError = CoreError & {
+  code: 'auth_failed';
+  subCode: 'reauth_required';
+};
+
+/**
+ * True iff `error` is the reauth-required carve-out. Consumers branch on
+ * this to trigger an interactive sign-in (e.g. NextAuth `signIn()`),
+ * never a silent token refresh — see packages/sdk/docs/auth.md.
+ *
+ * `error.transport` reports the carrier: 'rest' in practice (the contract
+ * defines reauth_required as a REST-only envelope, rest-api.md §4.1.1); a
+ * 'ws' value means the defensive contract-drift mapping in
+ * `wsErrorToCoreError` fired and should be treated identically.
+ */
+export function isReauthRequired(error: CoreError): error is ReauthRequiredError {
+  // `subCode === 'reauth_required'` implies the property is present, so
+  // the equality check alone is sufficient (review #22 suggestion).
+  return error.code === 'auth_failed' && error.subCode === 'reauth_required';
+}
+
 interface MapInput {
   readonly message?: string;
   readonly subCode?: CoreErrorSubCode;

@@ -80,6 +80,7 @@ export class HttpCore {
           err: err instanceof Error ? err.message : String(err),
         });
         this.recordDuration(path, 'error', startedAt);
+        this.recordAuthFailed(undefined);
         return {
           ok: false,
           error: restErrorToCoreError('auth_failed', 401, { message: 'getToken failed' }),
@@ -167,8 +168,26 @@ export class HttpCore {
         continue;
       }
 
+      // Cross-transport observability parity (MYR-82): emit
+      // auth_failed_total{subCode} for SURFACED auth failures so operators
+      // can monitor the recent-auth gate (reauth_required) across REST and
+      // WS with one metric. Deliberately NARROWER than the WS client,
+      // which fires on every error frame (MYR-50): REST returns many
+      // unrelated 4xx/5xx, and folding those into auth_failed_total would
+      // mislead. The transiently-retried 401 above does not reach here, so
+      // only auth failures actually returned to the caller are counted.
+      if (core.code === 'auth_failed') {
+        this.recordAuthFailed(subCode);
+      }
+
       return { ok: false, error: core };
     }
+  }
+
+  /** auth_failed_total{subCode} — tag shape matches the WS client so a
+   *  dashboard can sum across transports. subCode 'null' when absent. */
+  private recordAuthFailed(subCode: CoreErrorSubCode | undefined): void {
+    this.metrics.counter(Metric.AUTH_FAILED, { subCode: subCode ?? 'null' });
   }
 
   /** One duration sample per terminal/retry outcome with the REAL status
