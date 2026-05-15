@@ -8,8 +8,8 @@ describe('@myrobotaxi/sdk scaffold', () => {
     expect(typeof SDK_VERSION).toBe('string');
   });
 
-  it('reflects MYR-82 ReauthRequired carve-out surface bump', () => {
-    expect(SDK_VERSION).toBe('0.0.6');
+  it('reflects MYR-83 per-vehicle subscribe surface bump', () => {
+    expect(SDK_VERSION).toBe('0.0.7');
   });
 });
 

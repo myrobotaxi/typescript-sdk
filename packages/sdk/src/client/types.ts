@@ -60,6 +60,21 @@ export type ClientEvent =
       readonly reason?: string;
     }
   | { readonly kind: 'frame'; readonly type: string; readonly payload: unknown }
-  | { readonly kind: 'error'; readonly error: CoreError };
+  | { readonly kind: 'error'; readonly error: CoreError }
+  | {
+      // A subscribe frame was rejected (permission_denied /
+      // vehicle_not_owned). The vehicle is NOT in the subscribed set.
+      readonly kind: 'subscribeRejected';
+      readonly vehicleId: string;
+      readonly error: CoreError;
+    };
 
 export type ClientListener = (event: ClientEvent) => void;
+
+/** Handle returned by `client.subscribe(vehicleId)` (MYR-83). */
+export interface Subscription {
+  readonly vehicleId: string;
+  /** Idempotent. Sends an `unsubscribe` frame and drops the vehicle
+   *  from the subscribed set; subsequent frames for it are ignored. */
+  unsubscribe(): void;
+}
