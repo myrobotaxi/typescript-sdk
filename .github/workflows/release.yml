@@ -64,7 +64,13 @@ jobs:
       - run: npm run build
 
       - name: Version as canary snapshot
+        # @changesets/changelog-github calls the GitHub API to enrich the
+        # CHANGELOG (PR + author links) — it reads GITHUB_TOKEN, not the
+        # gh-CLI's GH_TOKEN. github.token (contents:read) can read this
+        # repo's PR/commit/user data, which is all the generator needs.
         run: npx changeset version --snapshot canary
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Publish canary
         # No env: NODE_AUTH_TOKEN — OIDC handles auth.
@@ -114,6 +120,9 @@ jobs:
       - name: Version, changelog, tag
         if: steps.pending.outputs.has == 'true'
         env:
+          # changeset version → @changesets/changelog-github reads
+          # GITHUB_TOKEN (not the gh-CLI's GH_TOKEN) to enrich CHANGELOG.
+          GITHUB_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name  'myrobotaxi-release[bot]'
@@ -170,6 +179,9 @@ jobs:
 
       - name: Version, changelog, tag (hotfix)
         env:
+          # See stable lane: changeset version needs GITHUB_TOKEN for the
+          # github changelog generator; GH_TOKEN alone is insufficient.
+          GITHUB_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name  'myrobotaxi-release[bot]'
