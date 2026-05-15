@@ -27,7 +27,7 @@ extract_pass3() {
   local body="$1"
   if echo "$body" | grep -qiE '\brequest[[:space:]_-]?changes\b|\brequesting[[:space:]]+changes\b|\bneeds?[[:space:]]+changes\b|\bblocking[[:space:]]+(issue|problem|item)s?[[:space:]]+(found|identified|present)\b'; then
     echo "REQUEST_CHANGES"
-  elif echo "$body" | grep -qiE '\bapproved?\b|\bno[[:space:]]+blocking[[:space:]]+issues?\b|\blgtm\b|\bship[[:space:]]+it\b'; then
+  elif echo "$body" | grep -qiE '\bapproved?\b|\bno[[:space:]]+blocking[[:space:]]+issues?\b|\blgtm\b|\blooks[[:space:]]+good[[:space:]]+to[[:space:]]+(merge|ship|go)\b|\bship[[:space:]]+it\b|\bready[[:space:]]+to[[:space:]]+merge\b|\bcorrectly[[:space:]]+resolved\b'; then
     echo "APPROVE"
   fi
 }
@@ -48,6 +48,7 @@ check "classic bold colon"             "APPROVE" "$(extract_pass2 '**Verdict:** 
 check "bold label, plain value"        "APPROVE" "$(extract_pass2 '**Verdict** APPROVE')"
 check "plain lowercase"                "APPROVE" "$(extract_pass2 'Verdict: approve')"
 check "request_changes bold"           "REQUEST_CHANGES" "$(extract_pass2 '**Verdict: REQUEST_CHANGES**')"
+check "comment bold (third arm)"       "COMMENT" "$(extract_pass2 '**Verdict: COMMENT**')"
 
 # Pass-3 must NOT flip a clean approve when prose merely mentions
 # "blockers" in a reassuring sentence (the PR #17 regression).
