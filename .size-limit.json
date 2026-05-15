@@ -10,5 +10,11 @@
     "path": "packages/sdk/dist/react.js",
     "limit": "20 KB",
     "gzip": true
+  },
+  {
+    "name": "@myrobotaxi/sdk/types (esm) — tripwire",
+    "path": "packages/sdk/dist/types.js",
+    "limit": "1 KB",
+    "gzip": true
   }
 ]

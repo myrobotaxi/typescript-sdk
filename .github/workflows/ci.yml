@@ -119,18 +119,44 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      # size-limit itself is a devDep, so npm ci is required — but the
+      # built artifact is reused from the `build` job rather than rebuilt
+      # (review suggestion #2: ~30-60s saved per run).
       - run: npm ci
-      - run: npm run build
+
+      - name: Download dist from the build job
+        uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: packages/sdk/dist/
 
       - name: Measure gzipped bundle size (NFR-3.30)
         id: size
         run: |
           set +e
-          npm run size | tee size-output.txt
+          # --silent strips the npm-script preamble so the artifact + PR
+          # comment are pure size-limit output (review suggestion #5).
+          npm run --silent size | tee size-output.txt
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
           # Capture machine-readable form for the trend artifact even on breach.
-          npm run size:json > size-report.json 2>/dev/null || true
+          npm run --silent size:json > size-report.json 2>/dev/null || true
           set -e
+
+      - name: Assert total stays under the NFR-3.30 sum budget
+        run: |
+          # size-limit enforces per-entry caps; this guards the documented
+          # "sum < 75 KB" invariant explicitly so it can't silently drift
+          # if a per-entry cap is ever loosened (review suggestion #4).
+          node -e '
+            const r = require("./size-report.json");
+            const total = r.reduce((s, e) => s + (e.size || 0), 0);
+            const BUDGET = 75 * 1024;
+            console.log(`Total gzipped: ${total} B (budget ${BUDGET} B)`);
+            if (total > BUDGET) {
+              console.error(`::error::Total bundle ${total} B exceeds the ${BUDGET} B NFR-3.30 sum budget`);
+              process.exit(1);
+            }
+          '
 
       - name: Upload size report (trend artifact)
         if: always()
@@ -143,12 +169,16 @@ jobs:
           if-no-files-found: warn
           retention-days: 90
 
-      - name: Comment on PR if over budget
+      - name: Upsert PR comment if over budget
         if: steps.size.outputs.exit_code != '0' && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
         run: |
+          MARKER="<!-- bundle-size-report -->"
           {
+            echo "$MARKER"
             echo "## Bundle size over budget (NFR-3.30)"
             echo ""
             echo "The gzipped bundle exceeds its budget. Budget: core < 55 KB, react < 20 KB, total < 75 KB."
@@ -159,7 +189,15 @@ jobs:
             echo ""
             echo "See \`packages/sdk/CONTRIBUTING.md\` → **Bundle budget** for how to inspect locally and what is allowed to be added."
           } > comment.md
-          gh pr comment "${{ github.event.pull_request.number }}" --body-file comment.md
+          # Upsert: update the existing marked comment in place rather than
+          # appending a new one on every breached push (review suggestion #1).
+          EXISTING=$(gh api "repos/${REPO}/issues/${PR}/comments" --paginate \
+            --jq "map(select(.body | startswith(\"${MARKER}\"))) | .[0].id // empty")
+          if [ -n "$EXISTING" ]; then
+            gh api "repos/${REPO}/issues/comments/${EXISTING}" -X PATCH -f body="$(cat comment.md)" >/dev/null
+          else
+            gh pr comment "$PR" --body-file comment.md
+          fi
 
       - name: Fail the build if over budget
         if: steps.size.outputs.exit_code != '0'

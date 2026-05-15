@@ -42,7 +42,7 @@ The `sdk-architect` agent enforces this at review time.
 
 Total gzipped bundle budget: **< 75 KB** — core (`@myrobotaxi/sdk`) `<` 55 KB + react (`@myrobotaxi/sdk/react`) `<` 20 KB.
 
-Enforced in CI by the **Bundle size** job (MYR-54), which fails the build if either entry point exceeds its budget and posts a PR comment showing the current size, the budget, and the breach.
+Enforced in CI by the **Bundle size** job (MYR-54): `size-limit` checks each entry point against its **per-entry cap** (core < 55 KB, react < 20 KB, plus a 1 KB tripwire on the `./types` subpath which must stay type-only). A separate step asserts the **sum < 75 KB** so the NFR-3.30 total can't drift even if a per-entry cap is ever loosened. On breach the job upserts a single PR comment (updated in place, not re-appended) with the size table and fails the build.
 
 ### Inspect locally before pushing
 
