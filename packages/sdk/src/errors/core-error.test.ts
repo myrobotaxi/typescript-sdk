@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { ErrorPayload } from '@myrobotaxi/contracts/types';
 
 import {
+  isReauthRequired,
   isRetryable,
   isTerminal,
   restErrorToCoreError,
   wsErrorToCoreError,
   type CoreError,
   type CoreErrorCode,
+  type ReauthRequiredError,
 } from './core-error';
 
 // Every code in the union, with its expected catalog classification.
@@ -120,5 +122,44 @@ describe('message is never used for branching (FR-7.1)', () => {
     // Discriminated-union narrowing works on `code`:
     const handled: CoreError = e;
     if (handled.code === 'internal_error') expect(handled.retryable).toBe(true);
+  });
+});
+
+describe('isReauthRequired guard (MYR-82)', () => {
+  it('true only for auth_failed + subCode reauth_required', () => {
+    const reauth = restErrorToCoreError('auth_failed', 401, {
+      subCode: 'reauth_required',
+    });
+    expect(isReauthRequired(reauth)).toBe(true);
+  });
+
+  it('false for plain auth_failed (no subCode) — the retryable carve-in', () => {
+    const plain = restErrorToCoreError('auth_failed', 401, {});
+    expect(isReauthRequired(plain)).toBe(false);
+  });
+
+  it('false for unrelated codes incl. the other subCode override', () => {
+    expect(isReauthRequired(restErrorToCoreError('not_found', 404, {}))).toBe(false);
+    expect(isReauthRequired(restErrorToCoreError('internal_error', 500, {}))).toBe(false);
+    expect(
+      isReauthRequired(restErrorToCoreError('rate_limited', 429, { subCode: 'device_cap' })),
+    ).toBe(false);
+  });
+
+  it('narrows the type so consumers route without re-checking the union', () => {
+    const e: CoreError = wsErrorToCoreError({
+      code: 'auth_failed',
+      message: 'stale auth_time',
+      subCode: 'reauth_required',
+    } as ErrorPayload);
+    if (isReauthRequired(e)) {
+      const narrowed: ReauthRequiredError = e; // compile-time narrowing proof
+      expect(narrowed.code).toBe('auth_failed');
+      expect(narrowed.subCode).toBe('reauth_required');
+      expect(narrowed.terminal).toBe(true);
+      expect(narrowed.retryable).toBe(false);
+    } else {
+      throw new Error('guard should have matched');
+    }
   });
 });

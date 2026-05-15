@@ -8,11 +8,11 @@
 //   - MYR-51 ✓ Snapshot + delta reconciler (internal — used by hooks)
 //   - MYR-50 ✓ WebSocket client (connect / reconnect / heartbeat / watchdog)
 //   - MYR-80 ✓ REST client (snapshot / drives / vehicles.list / invites / users.me)
-//   - MYR-82   ReauthRequired carve-out
+//   - MYR-82 ✓ ReauthRequired carve-out (typed guard + cross-transport parity)
 //   - MYR-83   Per-vehicle subscribe/unsubscribe
 //   - MYR-84   Reconnect orchestration (REST snapshot before WS resume)
 
-export const SDK_VERSION = '0.0.5';
+export const SDK_VERSION = '0.0.6';
 
 export * from './observability/index.js';
 export * from './errors/index.js';

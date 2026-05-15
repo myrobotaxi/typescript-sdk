@@ -4,9 +4,11 @@ export type {
   CoreError,
   CoreErrorCode,
   CoreErrorSubCode,
+  ReauthRequiredError,
   Transport,
 } from './core-error.js';
 export {
+  isReauthRequired,
   isRetryable,
   isTerminal,
   restErrorToCoreError,
