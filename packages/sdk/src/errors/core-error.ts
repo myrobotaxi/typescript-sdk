@@ -18,6 +18,13 @@ export type CoreErrorCode = ErrorPayload['code'] | 'service_unavailable';
 
 export type CoreErrorSubCode = NonNullable<ErrorPayload['subCode']>;
 
+/**
+ * Which carrier delivered the error. **Diagnostic only — treat as opaque.**
+ * Do NOT exhaustive-switch on this: behaviour for a shared code MUST NOT
+ * differ by transport (websocket-protocol.md §6.1.1), and a future carrier
+ * (SSE / long-poll fallback) would silently break a consumer's exhaustive
+ * narrowing. Branch on `code`, never on `transport`.
+ */
 export type Transport = 'ws' | 'rest';
 
 interface CoreErrorBase {
