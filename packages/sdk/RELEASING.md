@@ -55,7 +55,9 @@ anywhere**. This reuses the hardened pattern from `myrobotaxi/contracts`
 
 ### One-time setup (before the first publish)
 
-The SDK is unpublished (scaffold `0.0.0`). Before the first release:
+The SDK is unpublished (`0.0.x` scaffold — the version advances with
+scaffold PRs but nothing is on npm until the first stable cut). Before
+the first release:
 
 1. Ensure the `@myrobotaxi` npm org exists (it does — `@myrobotaxi/contracts` ships there).
 2. Configure the trusted publisher at
@@ -68,6 +70,13 @@ The SDK is unpublished (scaffold `0.0.0`). Before the first release:
    - Workflow filename: `release.yml`
    - Environment name: `npm-publish`
 3. Create the `npm-publish` GitHub Environment.
+4. **Release-identity push access.** The stable/hotfix lanes do
+   `git push origin HEAD:main` (version bump + CHANGELOG + tags). Today
+   `main` has no branch protection so the workflow's `GITHUB_TOKEN`
+   (with `contents: write`) suffices. If branch protection is added
+   later, configure a bypass for the release identity (a deploy key or
+   a GitHub App token with bypass), or the stable/hotfix lanes will
+   fail to push.
 
 ### First stable: `0.0.0 → 1.0.0`
 

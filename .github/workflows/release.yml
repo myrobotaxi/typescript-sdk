@@ -25,6 +25,10 @@ on:
         type: choice
         options: [stable, hotfix]
 
+# Load-bearing: serialises canary + stable + hotfix on the same ref so a
+# Monday-cron stable can't race a same-minute canary push (both publish
+# @myrobotaxi/sdk). cancel-in-progress:false — never abort an
+# in-flight publish; queue behind it.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -95,7 +99,11 @@ jobs:
       - name: Any pending changesets?
         id: pending
         run: |
-          # Real changesets are *.md other than README.md.
+          # Real changesets are *.md other than README.md. An empty
+          # (frontmatter-only) changeset still counts as "pending": it
+          # is a real file, so `changeset version` consumes+deletes it
+          # (a diff to commit — no `git commit` failure) and
+          # `changeset publish` is a clean no-op because nothing bumped.
           if ls .changeset/*.md 2>/dev/null | grep -qv 'README\.md'; then
             echo "has=true" >> "$GITHUB_OUTPUT"
           else
@@ -148,6 +156,17 @@ jobs:
         run: npm install -g npm@11.5.1
 
       - run: npm ci
+
+      # Fail fast with an actionable message instead of a confusing
+      # `git commit` "nothing to commit" exit when an on-call engineer
+      # triggers a hotfix with no staged changeset (review W1; mirrors
+      # the stable lane's pending-changesets guard).
+      - name: Require a pending changeset
+        run: |
+          if ! ls .changeset/*.md 2>/dev/null | grep -qv 'README\.md'; then
+            echo "::error::Hotfix lane requires a staged changeset on main. See packages/sdk/RELEASING.md → 'Authoring a changeset'."
+            exit 1
+          fi
 
       - name: Version, changelog, tag (hotfix)
         env:
