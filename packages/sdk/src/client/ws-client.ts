@@ -139,7 +139,12 @@ export class MyRoboTaxiClient {
     // connect / retry / disconnect). Hand back an inert handle so callers
     // — e.g. a React effect cleanup — don't have to null-check.
     if (this.destroyed) {
-      return { vehicleId, unsubscribe: () => {} };
+      return {
+        vehicleId,
+        unsubscribe: () => {
+          /* inert — client destroyed */
+        },
+      };
     }
     this.receiveAll = false;
     if (!this.subscribedVehicles.has(vehicleId)) {
