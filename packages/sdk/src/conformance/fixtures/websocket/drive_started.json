@@ -1,0 +1,14 @@
+{
+  "name": "drive_started",
+  "kind": "frame_parse",
+  "input": {
+    "type": "drive_started",
+    "payload": {
+      "vehicleId": "clxyz",
+      "driveId": "d_1"
+    }
+  },
+  "expect": {
+    "type": "drive_started"
+  }
+}

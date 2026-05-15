@@ -1,0 +1,15 @@
+{
+  "name": "rest_service_unavailable",
+  "kind": "rest_error",
+  "input": {
+    "code": "service_unavailable",
+    "httpStatus": 503,
+    "retryAfterSec": 30
+  },
+  "expect": {
+    "code": "service_unavailable",
+    "retryable": true,
+    "terminal": false,
+    "retryAfterSec": 30
+  }
+}

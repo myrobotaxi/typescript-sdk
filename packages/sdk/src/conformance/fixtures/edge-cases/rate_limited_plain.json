@@ -1,0 +1,13 @@
+{
+  "name": "rate_limited_plain",
+  "kind": "ws_error",
+  "input": {
+    "code": "rate_limited",
+    "message": "slow down"
+  },
+  "expect": {
+    "code": "rate_limited",
+    "retryable": true,
+    "terminal": false
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "rest_rate_limited",
+  "kind": "rest_error",
+  "input": {
+    "code": "rate_limited",
+    "httpStatus": 429,
+    "retryAfterSec": 12
+  },
+  "expect": {
+    "code": "rate_limited",
+    "retryable": true,
+    "terminal": false,
+    "retryAfterSec": 12
+  }
+}

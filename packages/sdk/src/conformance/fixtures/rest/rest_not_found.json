@@ -1,0 +1,13 @@
+{
+  "name": "rest_not_found",
+  "kind": "rest_error",
+  "input": {
+    "code": "not_found",
+    "httpStatus": 404
+  },
+  "expect": {
+    "code": "not_found",
+    "retryable": false,
+    "terminal": true
+  }
+}

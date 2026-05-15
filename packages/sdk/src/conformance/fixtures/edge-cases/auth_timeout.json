@@ -1,0 +1,13 @@
+{
+  "name": "auth_timeout",
+  "kind": "ws_error",
+  "input": {
+    "code": "auth_timeout",
+    "message": "slow"
+  },
+  "expect": {
+    "code": "auth_timeout",
+    "retryable": true,
+    "terminal": false
+  }
+}

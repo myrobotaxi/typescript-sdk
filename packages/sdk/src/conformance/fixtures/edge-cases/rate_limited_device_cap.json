@@ -1,0 +1,15 @@
+{
+  "name": "rate_limited_device_cap",
+  "kind": "ws_error",
+  "input": {
+    "code": "rate_limited",
+    "message": "too many devices",
+    "subCode": "device_cap"
+  },
+  "expect": {
+    "code": "rate_limited",
+    "subCode": "device_cap",
+    "retryable": false,
+    "terminal": true
+  }
+}

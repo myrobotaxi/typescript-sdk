@@ -1,0 +1,13 @@
+{
+  "name": "rest_invalid_request",
+  "kind": "rest_error",
+  "input": {
+    "code": "invalid_request",
+    "httpStatus": 400
+  },
+  "expect": {
+    "code": "invalid_request",
+    "retryable": false,
+    "terminal": true
+  }
+}

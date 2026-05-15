@@ -1,0 +1,13 @@
+{
+  "name": "permission_denied",
+  "kind": "ws_error",
+  "input": {
+    "code": "permission_denied",
+    "message": "no"
+  },
+  "expect": {
+    "code": "permission_denied",
+    "retryable": false,
+    "terminal": true
+  }
+}
