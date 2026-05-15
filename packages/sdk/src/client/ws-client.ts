@@ -60,7 +60,7 @@ export class MyRoboTaxiClient {
   private readonly getToken: () => Promise<string>;
   private readonly heartbeatMs: number;
   private readonly watchdogMs: number;
-  private readonly maxRetries: number;
+  private readonly maxAttempts: number;
   private readonly wsFactory: WebSocketFactory;
 
   constructor(opts: MyRoboTaxiClientOptions) {
@@ -72,7 +72,7 @@ export class MyRoboTaxiClient {
     this.getToken = opts.getToken;
     this.heartbeatMs = opts.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_MS;
     this.watchdogMs = this.heartbeatMs * 2; // §7.4.1
-    this.maxRetries = opts.maxRetries ?? Number.POSITIVE_INFINITY;
+    this.maxAttempts = opts.maxAttempts ?? Number.POSITIVE_INFINITY;
     const factory =
       opts.webSocketFactory ??
       ((u: string) => {
@@ -94,7 +94,9 @@ export class MyRoboTaxiClient {
 
   subscribe(listener: ClientListener): () => void {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   /** C-1: initializing → connecting. Idempotent while already active. */
@@ -164,6 +166,7 @@ export class MyRoboTaxiClient {
         socket.onerror = () => this.onError();
       })
       .catch((err: unknown) => {
+        if (this.destroyed) return; // no dangling reconnect timer post-destroy
         this.metrics.counter(Metric.WS_CONNECT_ATTEMPTS, outcomeTag('fail'));
         this.logger.error('ws: getToken rejected', {
           err: err instanceof Error ? err.message : String(err),
@@ -254,7 +257,7 @@ export class MyRoboTaxiClient {
   private scheduleReconnect(reason: string): void {
     this.clearTimers();
     this.closeSocket(1001, reason);
-    if (this.attempt >= this.maxRetries) {
+    if (this.attempt >= this.maxAttempts) {
       this.transition('error', 'max_retries_exhausted'); // C-5
       return;
     }

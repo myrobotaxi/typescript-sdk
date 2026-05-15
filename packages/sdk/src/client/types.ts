@@ -43,8 +43,10 @@ export interface MyRoboTaxiClientOptions {
   /** Server heartbeat cadence (default 15000 ms, websocket-protocol §7.4).
    *  The post-`auth_ok` liveness watchdog fires at 2× this. */
   readonly heartbeatIntervalMs?: number;
-  /** Reconnect attempt cap. Default unbounded (NFR-3.10). */
-  readonly maxRetries?: number;
+  /** Total connection attempts INCLUDING the first (not "retries after
+   *  the initial"). `maxAttempts: 1` → one attempt, no reconnect. Default
+   *  unbounded (NFR-3.10). Named to match the REST client's `maxAttempts`. */
+  readonly maxAttempts?: number;
   /** WebSocket constructor. Defaults to `globalThis.WebSocket` (browser).
    *  Node consumers pass `(url) => new WS(url)` from the `ws` package. */
   readonly webSocketFactory?: WebSocketFactory;

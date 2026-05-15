@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MyRoboTaxiClient } from './ws-client';
-import type { ClientEvent, WebSocketLike } from './types';
+import type { ClientEvent, MyRoboTaxiClientOptions, WebSocketLike } from './types';
 
 // Controllable mock satisfying WebSocketLike. The test drives the
 // lifecycle deterministically (open → auth_ok → frames → close).
@@ -40,7 +40,7 @@ class MockWS implements WebSocketLike {
   }
 }
 
-function makeClient(overrides: Partial<Parameters<typeof MyRoboTaxiClient.prototype.constructor>[0]> = {}) {
+function makeClient(overrides: Partial<MyRoboTaxiClientOptions> = {}) {
   const events: ClientEvent[] = [];
   const client = new MyRoboTaxiClient({
     url: 'wss://t.example/api/ws',
@@ -179,13 +179,62 @@ describe('MyRoboTaxiClient — terminal errors', () => {
     expect(events.some((e) => e.kind === 'error' && e.error.code === 'auth_failed')).toBe(true);
   });
 
-  it('max retries exhausted → error (C-5)', async () => {
-    const { client } = makeClient({ maxRetries: 1 });
+  it('max attempts exhausted → error (C-5)', async () => {
+    const { client } = makeClient({ maxAttempts: 1 });
     client.connect();
     await flush();
     MockWS.instances[0]!.fireOpen();
-    MockWS.instances[0]!.fireClose(1006); // attempt 1 was used; >= maxRetries
+    MockWS.instances[0]!.fireClose(1006); // attempt 1 used; >= maxAttempts
     expect(client.connectionState).toBe('error');
+  });
+
+  it('getToken() rejection → init_failed reconnect path', async () => {
+    let n = 0;
+    const { client, events } = makeClient({
+      getToken: async () => {
+        n += 1;
+        if (n === 1) throw new Error('no token');
+        return 'tok';
+      },
+    });
+    client.connect();
+    await flush();
+    expect(
+      events.some((e) => e.kind === 'connectionState' && e.reason === 'init_failed'),
+    ).toBe(true);
+    expect(client.connectionState).toBe('disconnected');
+  });
+
+  it('webSocketFactory throwing synchronously → ws_open_failed reconnect', async () => {
+    let throwOnce = true;
+    const { client, events } = makeClient({
+      webSocketFactory: (u) => {
+        if (throwOnce) {
+          throwOnce = false;
+          throw new Error('factory boom');
+        }
+        return new MockWS(u);
+      },
+    });
+    client.connect();
+    await flush();
+    expect(
+      events.some((e) => e.kind === 'connectionState' && e.to === 'disconnected'),
+    ).toBe(true);
+  });
+
+  it('a throwing listener does not break other listeners', async () => {
+    const { client } = makeClient();
+    const seen: ClientEvent[] = [];
+    client.subscribe(() => {
+      throw new Error('listener boom');
+    });
+    client.subscribe((e) => seen.push(e));
+    client.connect();
+    await flush();
+    MockWS.instances[0]!.fireOpen();
+    MockWS.instances[0]!.fireMessage({ type: 'auth_ok', payload: {} });
+    expect(seen.some((e) => e.kind === 'connectionState')).toBe(true);
   });
 });
 
