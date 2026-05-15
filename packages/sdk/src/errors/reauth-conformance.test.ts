@@ -180,4 +180,33 @@ describe('reauth_required conformance — WS carrier (MYR-82)', () => {
     const authFailed = counters.filter((c) => c.name === Metric.AUTH_FAILED);
     expect(authFailed).toEqual([{ name: Metric.AUTH_FAILED, tags: { subCode: 'reauth_required' } }]);
   });
+
+  it('CONTROL: plain auth_failed over WS is NOT reauth-required', async () => {
+    const { rec } = spyMetrics();
+    const events: ClientEvent[] = [];
+    const client = new MyRoboTaxiClient({
+      url: 'wss://t.example/api/ws',
+      getToken: async () => 'tok',
+      webSocketFactory: (u) => new MockWS(u),
+      heartbeatIntervalMs: 1000,
+      metrics: rec,
+    });
+    client.subscribe((e) => events.push(e));
+
+    client.connect();
+    await flush();
+    const ws = MockWS.instances[0]!;
+    ws.fireOpen();
+    ws.fireMessage({
+      type: 'error',
+      payload: { code: 'auth_failed', message: 'expired token' }, // no subCode
+    });
+
+    const errEvt = events.find((e) => e.kind === 'error');
+    expect(errEvt).toBeDefined();
+    if (errEvt && errEvt.kind === 'error') {
+      expect(isReauthRequired(errEvt.error)).toBe(false); // symmetry with REST control
+      expect(errEvt.error.code).toBe('auth_failed');
+    }
+  });
 });

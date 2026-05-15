@@ -146,11 +146,9 @@ export type ReauthRequiredError = CoreError & {
  * `wsErrorToCoreError` fired and should be treated identically.
  */
 export function isReauthRequired(error: CoreError): error is ReauthRequiredError {
-  return (
-    error.code === 'auth_failed' &&
-    'subCode' in error &&
-    error.subCode === 'reauth_required'
-  );
+  // `subCode === 'reauth_required'` implies the property is present, so
+  // the equality check alone is sufficient (review #22 suggestion).
+  return error.code === 'auth_failed' && error.subCode === 'reauth_required';
 }
 
 interface MapInput {
