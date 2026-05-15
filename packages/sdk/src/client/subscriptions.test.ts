@@ -174,7 +174,17 @@ describe('MyRoboTaxiClient — defensive drop + rejections (MYR-83)', () => {
     expect([...client.getSubscribedVehicles()]).toEqual([]); // server-driven
   });
 
-  it('permission_denied → subscribeRejected, vehicle out of set, connection kept', async () => {
+  // The wire ErrorPayload has no vehicleId/requestId (verified against
+  // @myrobotaxi/contracts), so a permission_denied / vehicle_not_owned
+  // is NOT attributed to a specific subscribe. It surfaces as the
+  // generic `error` event and does NOT silently mutate the subscribed
+  // set — guessing the offending vehicle from a FIFO was provably wrong
+  // after the 2nd subscribe (review Critical). Without correlation data
+  // these codes also revert to MYR-50's C-8 terminal handling (catalog:
+  // permission_denied is terminal): a connection-scoped error closes the
+  // connection. That is the honest behaviour — we cannot know it was
+  // subscribe-scoped, so we must not pretend the connection is fine.
+  it('permission_denied surfaces as a generic error; subscribed set NOT mis-mutated', async () => {
     const { client, events } = make();
     client.connect();
     await flush();
@@ -182,25 +192,45 @@ describe('MyRoboTaxiClient — defensive drop + rejections (MYR-83)', () => {
     ws.fireOpen();
     authOk(ws);
     client.subscribe('v1');
+    client.subscribe('v2'); // 2+ subscribes — the old FIFO mis-blamed v1
     ws.fireMessage({ type: 'error', payload: { code: 'permission_denied', message: 'no' } });
-    const rej = events.find((e) => e.kind === 'subscribeRejected');
-    expect(rej).toBeDefined();
-    if (rej && rej.kind === 'subscribeRejected') expect(rej.vehicleId).toBe('v1');
-    expect(client.getSubscribedVehicles().has('v1')).toBe(false);
-    expect(client.connectionState).toBe('connected'); // not a fatal error
+    const errEvt = events.find((e) => e.kind === 'error');
+    expect(errEvt).toBeDefined();
+    if (errEvt && errEvt.kind === 'error') expect(errEvt.error.code).toBe('permission_denied');
+    // Critical regression guard: no vehicle is silently dropped via a
+    // false FIFO guess — the set is exactly what was subscribed.
+    expect([...client.getSubscribedVehicles()].sort()).toEqual(['v1', 'v2']);
+    // C-8: a terminal connection-scoped error closes the connection
+    // (MYR-50 contract, restored now the unsound carve-out is gone).
+    expect(client.connectionState).toBe('error');
   });
 
-  it('vehicle_not_owned → subscribeRejected for the offending vehicle', async () => {
-    const { client, events } = make();
+  it('getSubscribedVehicles() returns a defensive copy', async () => {
+    const { client } = make();
     client.connect();
     await flush();
     const ws = MockWS.instances[0]!;
     ws.fireOpen();
     authOk(ws);
-    client.subscribe('vBad');
-    ws.fireMessage({ type: 'error', payload: { code: 'vehicle_not_owned', message: 'nope' } });
-    const rej = events.find((e) => e.kind === 'subscribeRejected');
-    expect(rej && rej.kind === 'subscribeRejected' && rej.vehicleId).toBe('vBad');
-    expect(client.getSubscribedVehicles().has('vBad')).toBe(false);
+    client.subscribe('v1');
+    const snapshot = client.getSubscribedVehicles() as Set<string>;
+    snapshot.add('vHACK'); // mutate the returned set
+    expect(client.getSubscribedVehicles().has('vHACK')).toBe(false); // internal set unaffected
+  });
+
+  it('subscribe()/subscribeAll() are inert after destroy()', async () => {
+    const { client } = make();
+    client.connect();
+    await flush();
+    const ws = MockWS.instances[0]!;
+    ws.fireOpen();
+    authOk(ws);
+    client.destroy();
+    const sub = client.subscribe('v1'); // no state mutation, no send
+    expect(sub.vehicleId).toBe('v1');
+    expect(() => sub.unsubscribe()).not.toThrow();
+    client.subscribeAll(); // no-op
+    expect([...client.getSubscribedVehicles()]).toEqual([]);
+    expect(ws.subscribeFrames()).toEqual([]);
   });
 });

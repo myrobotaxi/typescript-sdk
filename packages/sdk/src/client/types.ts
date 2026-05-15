@@ -60,14 +60,13 @@ export type ClientEvent =
       readonly reason?: string;
     }
   | { readonly kind: 'frame'; readonly type: string; readonly payload: unknown }
-  | { readonly kind: 'error'; readonly error: CoreError }
-  | {
-      // A subscribe frame was rejected (permission_denied /
-      // vehicle_not_owned). The vehicle is NOT in the subscribed set.
-      readonly kind: 'subscribeRejected';
-      readonly vehicleId: string;
-      readonly error: CoreError;
-    };
+  | { readonly kind: 'error'; readonly error: CoreError };
+// NOTE: there is intentionally NO per-vehicle `subscribeRejected` event.
+// The wire ErrorPayload (@myrobotaxi/contracts) carries no vehicleId or
+// requestId, so a permission_denied / vehicle_not_owned cannot be
+// soundly attributed to one subscribe. Such errors surface as the
+// generic `error` event. Per-vehicle rejection is blocked on an
+// ErrorPayload contract change (DV-07 follow-up).
 
 export type ClientListener = (event: ClientEvent) => void;
 

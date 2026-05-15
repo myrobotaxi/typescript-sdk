@@ -57,19 +57,25 @@ export class MyRoboTaxiClient {
   private readonly listeners = new Set<ClientListener>();
 
   // ---- per-vehicle subscription (MYR-83) ---------------------------------
-  // Default = legacy fan-out: the server seeds the connection's subscribed
-  // set from the owned-vehicle set at handshake (MYR-46), so a consumer
-  // that never calls subscribe() still receives every owned vehicle. The
-  // first subscribe() flips to selective mode (client-side defensive drop
-  // for anything outside the set).
+  // DV-07 (websocket-protocol.md §10): the server does NOT process
+  // subscribe/unsubscribe yet — it implicitly fans out every owned
+  // vehicle from the auth handshake (MYR-46). So this surface is two
+  // things: (1) a forward-compatible wire intent — frames the server
+  // will honour once DV-07 lands, harmless no-ops until then; and
+  // (2) the part with teeth TODAY — a client-side defensive drop of
+  // vehicle-scoped frames outside the subscribed set, once selective
+  // mode is on. We deliberately do NOT attribute a permission_denied /
+  // vehicle_not_owned error frame to a specific subscribe: the wire
+  // ErrorPayload carries no vehicleId or requestId (verified against
+  // @myrobotaxi/contracts), so any client-side FIFO correlation is a
+  // guess — and was provably wrong after the 2nd subscribe in a
+  // connection. Such errors surface UNATTRIBUTED via the normal
+  // {kind:'error'} path; honest per-vehicle rejection needs an
+  // ErrorPayload contract change (filed as a follow-up divergence).
   private receiveAll = true;
   private readonly subscribedVehicles = new Set<string>();
   // subscribe frames requested before auth_ok — flushed on auth_ok.
   private pendingSubscribes: string[] = [];
-  // FIFO of subscribe frames awaiting implicit ack, for correlating a
-  // permission_denied / vehicle_not_owned error (the wire ErrorPayload
-  // carries no vehicleId) to the offending vehicle — oldest-first.
-  private unackedSubscribes: string[] = [];
 
   private readonly logger: Logger;
   private readonly metrics: MetricsRecorder;
@@ -109,9 +115,9 @@ export class MyRoboTaxiClient {
     return this.state;
   }
 
-  /** Observe the client's event stream (connectionState / frame / error
-   *  / subscribeRejected). Returns an unsubscribe fn. (Was `subscribe`
-   *  in MYR-50; renamed in MYR-83 so `subscribe` is the per-vehicle wire
+  /** Observe the client's event stream (connectionState / frame /
+   *  error). Returns an unsubscribe fn. (Was `subscribe` in MYR-50;
+   *  renamed in MYR-83 so `subscribe` is the per-vehicle wire
    *  subscription per the contract — safe pre-1.0, no external
    *  consumers yet.) */
   onEvent(listener: ClientListener): () => void {
@@ -129,6 +135,12 @@ export class MyRoboTaxiClient {
    *  emits at most one `subscribe` frame per id (React 18 strict-mode
    *  double-mount safe). Returns a `Subscription` handle. */
   subscribe(vehicleId: string): Subscription {
+    // Post-destroy: no state mutation, no queued send (consistent with
+    // connect / retry / disconnect). Hand back an inert handle so callers
+    // — e.g. a React effect cleanup — don't have to null-check.
+    if (this.destroyed) {
+      return { vehicleId, unsubscribe: () => {} };
+    }
     this.receiveAll = false;
     if (!this.subscribedVehicles.has(vehicleId)) {
       this.subscribedVehicles.add(vehicleId);
@@ -144,6 +156,12 @@ export class MyRoboTaxiClient {
    *  already seeds the connection's set from ownership at handshake,
    *  MYR-46). Clears any selective set + disables the client-side drop. */
   subscribeAll(): void {
+    if (this.destroyed) return;
+    // Effective IMMEDIATELY, client-side: clearing the set + receiveAll
+    // disables the defensive drop now (not "next reconnect"). No wire
+    // frame is needed — under DV-07 the server already fans out every
+    // owned vehicle, and once a real subscribe contract lands the empty
+    // set simply means "no client-side filter".
     this.receiveAll = true;
     this.subscribedVehicles.clear();
     this.pendingSubscribes = [];
@@ -168,7 +186,6 @@ export class MyRoboTaxiClient {
 
   private sendSubscribe(vehicleId: string): void {
     if (this.state === 'connected' && this.ws) {
-      this.unackedSubscribes.push(vehicleId);
       try {
         this.ws.send(JSON.stringify({ type: 'subscribe', payload: { vehicleId } }));
       } catch {
@@ -281,7 +298,6 @@ export class MyRoboTaxiClient {
       // (state-machine §1.3 C-9→C-3): flush anything queued pre-auth_ok,
       // then re-emit every still-subscribed vehicle. The subscribed set
       // survives reconnects automatically.
-      this.unackedSubscribes = [];
       const toSend = new Set<string>([
         ...this.pendingSubscribes,
         ...this.subscribedVehicles,
@@ -297,25 +313,6 @@ export class MyRoboTaxiClient {
       const core = wsErrorToCoreError(
         (msg.payload ?? { code: 'internal_error', message: 'error' }) as never,
       );
-
-      // A subscribe rejection (permission_denied / vehicle_not_owned)
-      // is per-vehicle, NOT a fatal connection error. Correlate to the
-      // oldest un-acked subscribe (the wire ErrorPayload has no
-      // vehicleId), drop that vehicle from the set, surface a typed
-      // subscribeRejected event, and keep the connection. (For
-      // vehicle_not_owned the server also closes the socket 4002 — that
-      // arrives separately and onClose drives the reconnect; the
-      // rejected vehicle is already out so it won't be re-subscribed.)
-      if (
-        (core.code === 'permission_denied' || core.code === 'vehicle_not_owned') &&
-        this.unackedSubscribes.length > 0
-      ) {
-        const vehicleId = this.unackedSubscribes.shift() as string;
-        this.subscribedVehicles.delete(vehicleId);
-        this.logger.warn('ws: subscribe rejected', { vehicleId, code: core.code });
-        this.emit({ kind: 'subscribeRejected', vehicleId, error: core });
-        return;
-      }
 
       this.emitError(core);
       this.metrics.counter(Metric.AUTH_FAILED, {
