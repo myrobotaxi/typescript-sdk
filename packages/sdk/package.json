@@ -1,6 +1,6 @@
 {
   "name": "@myrobotaxi/sdk",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "MyRoboTaxi TypeScript SDK — logic-only client for browsers, Node, and React. Talks to the telemetry server via WebSocket + REST.",
   "license": "MIT",
   "repository": {
